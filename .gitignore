@@ -1,0 +1,24 @@
+# Python 캐시 및 빌드 파일
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 가상환경 (Virtual Environment)
+.venv/
+venv/
+ENV/
+env/
+
+# 환경변수 파일 (보안 정보)
+.env
+
+# 데이터 모델 파일 (용량 절감)
+*.task
+
+# IDE / Editor 설정 파일
+.vscode/
+.idea/
+
+# OS 생성 파일
+.DS_Store
+Thumbs.db
