@@ -13,10 +13,10 @@ class GameManager:
         "독서", "면역", "배드민턴", "변비", "불면증", 
         "사위", "찬물", "딸기", "떡국", "막걸리", 
         "부엌", "사이다", "에어컨", "주차장", "채팅", 
-        "출근", "디자인", "예술", "벚꽃", "참새"
+        "출근", "디자인", "예술", "참새"
     ]
 
-    def __init__(self, word_pool: Optional[List[str]] = None, target_count: int = 25):
+    def __init__(self, word_pool: Optional[List[str]] = None, target_count: int = 24):
         self.full_word_pool = word_pool if word_pool else self.DEFAULT_WORD_POOL
         self.target_count = min(target_count, len(self.full_word_pool))
         
@@ -32,9 +32,7 @@ class GameManager:
             self.active_words = random.sample(self.full_word_pool, self.target_count)
             self.score = 0 # 점수 리셋
             self.is_running = True
-            logging.info("🎮 새 게임 시작 (점수: 0점 초기화)")
         except Exception as e:
-            logging.error(f"게임 시작 오류: {e}", exc_info=True)
             self.active_words = []
             self.is_running = False
 

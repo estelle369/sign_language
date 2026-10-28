@@ -20,13 +20,13 @@ class GameView(QWidget):
         self.bg_path = "main_background.jpg"
         self.logo_path = "practice_mainbg.png"
         
-        # 25개 전용 학습 단어
+        # 24개 전용 학습 단어
         self.all_words = [
             "발가락", "슬프다", "자극", "영아", "성실", 
             "독서", "면역", "배드민턴", "변비", "불면증", 
             "사위", "찬물", "딸기", "떡국", "막걸리", 
             "부엌", "사이다", "에어컨", "주차장", "채팅", 
-            "출근", "디자인", "예술", "벚꽃", "참새"
+            "출근", "디자인", "예술", "참새"
         ]
         
         # 상태 변수
@@ -98,7 +98,7 @@ class GameView(QWidget):
         self.score_label = QLabel("SCORE: 0점")
         self.score_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #E75A7C; background-color: #FFE6EE; padding: 8px 18px; border-radius: 15px; border: none;")
 
-        self.remain_label = QLabel("남은 단어: 25 / 25")
+        self.remain_label = QLabel(f"남은 단어: {len(self.all_words)} / {len(self.all_words)}")
         self.remain_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #4A73E8; background-color: #E6EEFF; padding: 8px 18px; border-radius: 15px; border: none;")
 
         self.btn_top_main = QPushButton("메인 메뉴")
@@ -132,7 +132,7 @@ class GameView(QWidget):
         self.board_grid.setContentsMargins(20, 20, 20, 20)
         self.board_grid.setSpacing(15)
 
-        # 25개 단어 라벨 위젯 사전
+        # 24개 단어 라벨 위젯 사전
         self.word_widgets = {}
 
         # 화면 중앙 효과 오버레이
@@ -187,7 +187,7 @@ class GameView(QWidget):
             self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
 
     def _reset_game_state(self):
-        """상태 초기화 및 25개 단어 위치 섞어 재배치"""
+        """상태 초기화 및 24개 단어 위치 섞어 재배치"""
         self.score = 0
         self.time_left = 120
         self.countdown_val = 3
@@ -208,8 +208,8 @@ class GameView(QWidget):
         random.shuffle(shuffled)
 
         for idx, word in enumerate(shuffled):
-            row = idx // 5
-            col = idx % 5
+            row = idx // 6
+            col = idx % 6
             word_chip = QLabel(word)
             word_chip.setAlignment(Qt.AlignCenter)
             word_chip.setStyleSheet("""

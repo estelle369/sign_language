@@ -82,10 +82,3 @@ class WordCard(QFrame):
     def _on_animation_finished(self):
         self.hide()
         self.popped_finished.emit(self.word)
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = WordCard("사이다")
-    window.show()
-    sys.exit(app.exec_())
