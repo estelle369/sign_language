@@ -1,324 +1,221 @@
-# views/practice_view.py
-
 import os
-import random
+from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QPushButton, QLineEdit, 
-    QVBoxLayout, QHBoxLayout, QFrame
+    QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, 
+    QGridLayout, QScrollArea, QFrame
 )
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QPainter, QPixmap
 
-# ==============================================================================
-# [가이드 영상/웹캠 연동 시 필요한 모듈 (추후 주석 해제)]
-# import cv2
-# from PyQt5.QtCore import QTimer
-# from PyQt5.QtGui import QImage
-# ==============================================================================
+from .video_player import VideoPlayerWidget
 
 class PracticeView(QWidget):
+    """
+    [연습 모드] 9:16 전용 인터랙티브 수어 학습 화면
+    - 전체 배경색 #e3efff 적용
+    - 타이틀 글씨 대폭 확대 및 정중앙 배치
+    - 그리드 카드 형식으로 24개 단어 배치
+    """
+    back_to_main_requested = pyqtSignal()
 
-    # 상단 메인 메뉴 버튼 클릭 시 main.py로 전송할 무전기 신호
-    request_main_menu = pyqtSignal()
-
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         
-        # 1. 리소스 경로 설정
-        self.bg_path = "main_background.jpg"
-        self.logo_path = "practice_mainbg.png"
-        
-        # 2. 지정된 25개 수어 학습 단어 목록
-        self.all_words = [
-            "발가락", "슬프다", "자극", "영아", "성실", 
-            "독서", "면역", "배드민턴", "변비", "불면증", 
-            "사위", "찬물", "딸기", "떡국", "막걸리", 
-            "부엌", "사이다", "에어컨", "주차장", "채팅", 
-            "출근", "디자인", "예술", "참새"
+        # 24개 수어 단어 데이터셋
+        self.word_dataset = [
+            {"word": "발가락", "video_path": "assets/videos/balgarak.mp4", "desc": "발가락을 가리키는 수어 동작입니다."},
+            {"word": "슬프다", "video_path": "assets/videos/seulpeuda.mp4", "desc": "눈물을 닦아내는 듯한 동작의 수어입니다."},
+            {"word": "자극", "video_path": "assets/videos/jageuk.mp4", "desc": "신체나 마음에 자극을 주는 모습을 표현합니다."},
+            {"word": "영아", "video_path": "assets/videos/yeongah.mp4", "desc": "어린 아기를 안아주는 형태의 수어입니다."},
+            {"word": "성실", "video_path": "assets/videos/seongsil.mp4", "desc": "반듯하고 성실한 태도를 나타내는 수어입니다."},
+            {"word": "독서", "video_path": "assets/videos/dokseo.mp4", "desc": "책을 양손으로 펼쳐 읽는 모습을 표현합니다."},
+            {"word": "면역", "video_path": "assets/videos/myeonyeok.mp4", "desc": "질병으로부터 몸을 보호하는 수어입니다."},
+            {"word": "배드민턴", "video_path": "assets/videos/badminton.mp4", "desc": "라켓으로 셔틀콕을 치는 동작의 수어입니다."},
+            {"word": "변비", "video_path": "assets/videos/byeonbi.mp4", "desc": "배변 활동의 어려움을 나타내는 수어입니다."},
+            {"word": "불면증", "video_path": "assets/videos/bulmyeonjeung.mp4", "desc": "잠을 이루지 못해 눈이 말똥한 모습을 표현합니다."},
+            {"word": "사위", "video_path": "assets/videos/sawui.mp4", "desc": "가족 관계 중 사위를 뜻하는 수어입니다."},
+            {"word": "찬물", "video_path": "assets/videos/chanmul.mp4", "desc": "시원하거나 차가운 물을 나타내는 수어입니다."},
+            {"word": "딸기", "video_path": "assets/videos/ttalgi.mp4", "desc": "딸기의 표면 씨앗과 형태를 표현한 수어입니다."},
+            {"word": "떡국", "video_path": "assets/videos/tteokguk.mp4", "desc": "떡을 썰어 국에 넣는 모습을 표현한 수어입니다."},
+            {"word": "막걸리", "video_path": "assets/videos/makgeolli.mp4", "desc": "탁주를 사발에 따라 마시는 동작의 수어입니다."},
+            {"word": "부엌", "video_path": "assets/videos/bueok.mp4", "desc": "음식을 조리하는 공간인 부엌을 나타냅니다."},
+            {"word": "사이다", "video_path": "assets/videos/saida.mp4", "desc": "톡 쏘는 탄산의 느낌을 표현한 수어입니다."},
+            {"word": "에어컨", "video_path": "assets/videos/aircon.mp4", "desc": "시원한 바람이 나오는 기계를 표현한 수어입니다."},
+            {"word": "주차장", "video_path": "assets/videos/juchajang.mp4", "desc": "차량이 주차되어 있는 공간을 나타냅니다."},
+            {"word": "채팅", "video_path": "assets/videos/chatting.mp4", "desc": "손가락으로 글자를 타이핑하는 듯한 수어입니다."},
+            {"word": "출근", "video_path": "assets/videos/chulgeun.mp4", "desc": "일터로 향하는 모습을 나타내는 수어입니다."},
+            {"word": "디자인", "video_path": "assets/videos/design.mp4", "desc": "도면을 그리거나 디자인하는 동작의 수어입니다."},
+            {"word": "예술", "video_path": "assets/videos/yesul.mp4", "desc": "예술적 감각과 창작을 표현하는 수어입니다."},
+            {"word": "참새", "video_path": "assets/videos/chamsae.mp4", "desc": "새가 날아다니거나 부리를 표현한 수어입니다."}
         ]
-        
-        # 상태 변수
-        self.shuffled_words = []
-        self.current_index = 0
-        
+
+        self.word_buttons = []
         self.init_ui()
 
-    def paintEvent(self, event):
-        """화면 전체에 메인 배경을 유연하게 스케일링하여 그려줍니다."""
-        painter = QPainter(self)
-        if os.path.exists(self.bg_path):
-            bg_pixmap = QPixmap(self.bg_path)
-            painter.drawPixmap(self.rect(), bg_pixmap.scaled(self.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
-        else:
-            painter.fillRect(self.rect(), Qt.white)
-        super().paintEvent(event)
-
-    def showEvent(self, event):
- 
-        super().showEvent(event)
-        self._reset_and_update()
-
-    def _reset_and_update(self):
-        """단어 리스트 초기화 및 첫 번째 단어 UI 반영"""
-        self._reset_word_list()
-        self._update_word_ui()
-
-    def _reset_word_list(self):
-        """25개 단어를 무작위로 섞습니다."""
-        self.shuffled_words = self.all_words.copy()
-        random.shuffle(self.shuffled_words)
-        self.current_index = 0
-
     def init_ui(self):
-        root_layout = QVBoxLayout()
-        root_layout.setContentsMargins(20, 20, 20, 20)
-        root_layout.setSpacing(15)
+        # 💡 [핵심 수정] PracticeView 전체 배경을 #e3efff로 확실하게 채워줍니다!
+        self.setStyleSheet("PracticeView { background-color: #e3efff; }")
+        
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
 
-        # ======================================================================
-        # 1. 상단 헤더 바 (로고, 타이틀, 남은 단어, 메인 메뉴 버튼)
-        # ======================================================================
-        header_frame = QFrame()
-        header_frame.setStyleSheet("""
-            QFrame {
-                background-color: rgba(255, 255, 255, 0.85);
-                border-radius: 20px;
-                border: 2px solid #FFFFFF;
-            }
-        """)
-        header_layout = QHBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 10, 20, 10)
-
-        # 로고 & 타이틀
-        logo_title_layout = QHBoxLayout()
-        self.logo_label = QLabel()
-        if os.path.exists(self.logo_path):
-            logo_pixmap = QPixmap(self.logo_path).scaled(35, 35, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.logo_label.setPixmap(logo_pixmap)
-        else:
-            self.logo_label.setText("[LOGO]")
-            
-        self.title_label = QLabel("수어 연습 게임")
-        self.title_label.setStyleSheet("font-size: 22px; font-weight: bold; color: #5B6B9C; border: none; background: transparent;")
-
-        logo_title_layout.addWidget(self.logo_label)
-        logo_title_layout.addWidget(self.title_label)
-
-        # 진행 상황 표시
-        self.remain_label = QLabel()
-        self.remain_label.setStyleSheet("""
-            QLabel {
+        # ----------------------------------------------------
+        # 1. 상단: 메인으로 가기 버튼 & 정중앙에 커진 타이틀
+        # ----------------------------------------------------
+        header_layout = QHBoxLayout()
+        
+        self.btn_back = QPushButton("← 메인으로")
+        self.btn_back.setStyleSheet("""
+            QPushButton {
+                background-color: #014099;
+                color: white;
                 font-size: 16px;
                 font-weight: bold;
-                color: #4A73E8;
-                background-color: #E6EEFF;
-                padding: 8px 18px;
-                border-radius: 15px;
-                border: none;
+                border-radius: 10px;
+                padding: 12px 20px;
             }
+            QPushButton:hover { background-color: #002b6b; }
         """)
+        self.btn_back.clicked.connect(self._on_back_clicked)
+        
+        title_label = QLabel("수어 연습 모드")
+        title_label.setAlignment(Qt.AlignCenter)
+        # 💡 [핵심 수정] 글씨 크기를 30px로 더 키우고, 진한 파란색(#014099) 적용
+        title_label.setStyleSheet("font-size: 30px; font-weight: 900; color: #014099; background-color: transparent;")
 
-        # 상단 우측 메인 메뉴 버튼
-        self.btn_top_main = QPushButton("메인 메뉴")
-        self.btn_top_main.setStyleSheet("""
-            QPushButton {
-                font-size: 15px;
-                font-weight: bold;
-                color: #E75A7C;
-                background-color: #FFE6EE;
-                padding: 8px 18px;
-                border-radius: 15px;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #FFCCD9;
-            }
-        """)
-        self.btn_top_main.clicked.connect(self._on_click_back)
-
-        header_layout.addLayout(logo_title_layout)
+        header_layout.addWidget(self.btn_back)
         header_layout.addStretch(1)
-        header_layout.addWidget(self.remain_label)
-        header_layout.addWidget(self.btn_top_main)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch(1)  # 좌우 여백을 똑같이 주어 완벽한 정중앙 정렬
 
-        root_layout.addWidget(header_frame)
+        #main_layout.add.layout = header_layout # (오타 방지용 표준 addLayout 사용)
+        main_layout.addLayout(header_layout, stretch=1)
 
-        # ======================================================================
-        # 2. 하단 콘텐츠 영역 (좌: 수어 가이드 / 우: 단어 입력 및 판정)
-        # ======================================================================
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(15)
+        # ----------------------------------------------------
+        # 2. 상단-중간: 수어 시연 영상 영역
+        # ----------------------------------------------------
+        self.video_player = VideoPlayerWidget(self)
+        main_layout.addWidget(self.video_player, stretch=4)
 
-        # [2-1] 좌측: 수어 가이드 영상 영역
-        left_frame = QFrame()
-        left_frame.setStyleSheet("""
+        # 3. 중간: 현재 선택된 단어 및 설명 표시 영역
+        # ----------------------------------------------------
+        info_frame = QFrame()
+        info_frame.setStyleSheet("""
             QFrame {
-                background-color: rgba(255, 255, 255, 0.7);
-                border-radius: 20px;
-                border: 2px solid #FFFFFF;
+                background-color: #ffffff;
+                border-radius: 16px;
+                border: 2px solid #bcd3ff;
             }
         """)
-        left_layout = QVBoxLayout(left_frame)
-        left_layout.setContentsMargins(15, 15, 15, 15)
+        info_layout = QVBoxLayout(info_frame)
+        info_layout.setContentsMargins(15, 15, 15, 15)
+        info_layout.setSpacing(8)
 
-        # 🎬 [가이드 영상 연동 포인트]
-        self.video_label = QLabel("[수어 가이드 영상 영역]\n(화면 구현 단계)")
-        self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setStyleSheet("""
-            QLabel {
-                background-color: rgba(230, 235, 245, 0.6); 
-                color: #7A89B8; 
-                font-size: 18px; 
-                font-weight: bold;
-                border-radius: 15px;
+        self.lbl_current_word = QLabel("단어를 선택하세요")
+        self.lbl_current_word.setAlignment(Qt.AlignCenter)
+        self.lbl_current_word.setStyleSheet("""
+            font-size: 36px; 
+            font-weight: 900; 
+            color: #014099; 
+            background-color: transparent;
+            border: none;
+        """)
+
+        self.lbl_description = QLabel("아래 카드에서 학습할 단어를 터치해주세요.")
+        self.lbl_description.setAlignment(Qt.AlignCenter)
+        self.lbl_description.setStyleSheet("""
+            font-size: 16px; 
+            color: #666666; 
+            background-color: transparent;
+            border: none;
+        """)
+
+        info_layout.addWidget(self.lbl_current_word)
+        info_layout.addWidget(self.lbl_description)
+        
+        main_layout.addWidget(info_frame, stretch=2)
+
+        # ----------------------------------------------------
+        # 4. 하단: 24개 단어 그리드 카드 영역 (스크롤 지원)
+        # ----------------------------------------------------
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setStyleSheet("""
+            QScrollArea {
+                background-color: transparent;
                 border: none;
             }
-        """)
-        self.video_label.setMinimumSize(600, 450)
-        left_layout.addWidget(self.video_label)
-
-        # [2-2] 우측: 학습 단어 및 입력 패널
-        right_frame = QFrame()
-        right_frame.setStyleSheet("""
-            QFrame {
-                background-color: rgba(255, 255, 255, 0.7);
-                border-radius: 20px;
-                border: 2px solid #FFFFFF;
+            QScrollBar:vertical {
+                width: 8px;
+                background: #d0e1ff;
+                border-radius: 4px;
             }
-        """)
-        right_layout = QVBoxLayout(right_frame)
-        right_layout.setContentsMargins(20, 20, 20, 20)
-        right_layout.setSpacing(15)
-
-        # 학습 단어 라벨
-        self.word_label = QLabel()
-        self.word_label.setAlignment(Qt.AlignCenter)
-        self.word_label.setStyleSheet("""
-            QLabel {
-                font-size: 26px; 
-                font-weight: bold; 
-                color: #4A5B8C; 
-                padding: 10px;
-                background: transparent;
-                border: none;
+            QScrollBar::handle:vertical {
+                background: #014099;
+                border-radius: 4px;
             }
         """)
 
-        # 타자 입력창
-        self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText("단어를 입력하고 Enter를 누르세요")
-        self.input_field.setStyleSheet("""
-            QLineEdit {
-                font-size: 16px;
-                padding: 12px;
-                border: 2px solid #FFC0D9;
-                border-radius: 12px;
-                background-color: #FFFFFF;
-                color: #333333;
-            }
-            QLineEdit:focus {
-                border: 2px solid #FF80B2;
-            }
-        """)
-        self.input_field.returnPressed.connect(self._check_answer)
+        scroll_content = QWidget()
+        scroll_content.setStyleSheet("background-color: transparent;")
+        grid_layout = QGridLayout(scroll_content)
+        grid_layout.setSpacing(10)
+        grid_layout.setContentsMargins(5, 5, 5, 5)
 
-        # 정답 확인 버튼
-        self.btn_submit = QPushButton("정답 확인")
-        self.btn_submit.setStyleSheet("""
-            QPushButton {
-                font-size: 16px; 
-                padding: 12px; 
-                background-color: #52D68A; 
-                color: white; 
-                border-radius: 12px;
-                font-weight: bold;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #43C27B;
-            }
-        """)
-        self.btn_submit.clicked.connect(self._check_answer)
-
-        # 결과 메시지 라벨
-        self.result_label = QLabel("")
-        self.result_label.setAlignment(Qt.AlignCenter)
-        self.result_label.setStyleSheet("font-size: 16px; font-weight: bold; min-height: 30px; background: transparent; border: none;")
-
-        # 다음 단어 보기 버튼
-        self.btn_next_word = QPushButton("다음 단어 보기")
-        self.btn_next_word.setStyleSheet("""
-            QPushButton {
-                font-size: 16px; 
-                padding: 12px; 
-                background-color: #5B92E5; 
-                color: white; 
-                border-radius: 12px;
-                font-weight: bold;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #4A7FD4;
-            }
-        """)
-        self.btn_next_word.clicked.connect(self._go_to_next_word)
-
-        right_layout.addWidget(self.word_label)
-        right_layout.addWidget(self.input_field)
-        right_layout.addWidget(self.btn_submit)
-        right_layout.addWidget(self.result_label)
-        right_layout.addWidget(self.btn_next_word)
-        right_layout.addStretch(1)
-
-        content_layout.addWidget(left_frame, 65)
-        content_layout.addWidget(right_frame, 35)
-
-        root_layout.addLayout(content_layout)
-        self.setLayout(root_layout)
-
-    # ======================================================================
-    # 내부 판정 및 UI 갱신 로직
-    # ======================================================================
-    def _update_word_ui(self):
-        """현재 단어로 UI 세팅"""
-        if not self.shuffled_words:
-            return
+        # 24개 단어를 3열(Columns) 카드로 배치
+        row, col = 0, 0
+        for data in self.word_dataset:
+            card_btn = QPushButton(data["word"])
+            card_btn.setMinimumHeight(55)
+            card_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #ffffff;
+                    color: #014099;
+                    font-size: 16px;
+                    font-weight: bold;
+                    border: 2px solid #bcd3ff;
+                    border-radius: 10px;
+                }
+                QPushButton:hover {
+                    background-color: #d0e1ff;
+                }
+                QPushButton:checked {
+                    background-color: #014099;
+                    color: #ffffff;
+                    border: 2px solid #002b6b;
+                }
+            """)
+            card_btn.setCheckable(True)
+            card_btn.clicked.connect(lambda checked, d=data, btn=card_btn: self._on_card_clicked(d, btn))
             
-        current_word = self.shuffled_words[self.current_index]
-        total_count = len(self.shuffled_words)
-        
-        self.word_label.setText(f"학습 단어: {current_word}")
-        self.remain_label.setText(f"남은 단어: {total_count - self.current_index} / {total_count}")
-        
-        self.input_field.clear()
-        self.result_label.setText("")
-        self.input_field.setFocus()
+            grid_layout.addWidget(card_btn, row, col)
+            self.word_buttons.append(card_btn)
 
-    def _check_answer(self):
-        """정답/오답 확인"""
-        user_input = self.input_field.text().strip()
-        target_word = self.shuffled_words[self.current_index]
+            col += 1
+            if col >= 3:
+                col = 0
+                row += 1
 
-        if not user_input:
-            self.result_label.setText("단어를 입력해 주세요.")
-            self.result_label.setStyleSheet("color: #E67E22; font-size: 16px; font-weight: bold; background: transparent; border: none;")
-            return
+        scroll_area.setWidget(scroll_content)
+        main_layout.addWidget(scroll_area, stretch=4)
 
-        if user_input == target_word:
-            self.result_label.setText("정답입니다! 다음 단어로 이동합니다.")
-            self.result_label.setStyleSheet("color: #2ECC71; font-size: 16px; font-weight: bold; background: transparent; border: none;")
-            self._go_to_next_word()
-        else:
-            self.result_label.setText("다시 해보세요.")
-            self.result_label.setStyleSheet("color: #E74C3C; font-size: 16px; font-weight: bold; background: transparent; border: none;")
-            self.input_field.selectAll()
+        # 첫 번째 단어 기본 선택
+        if self.word_buttons:
+            self._on_card_clicked(self.word_dataset[0], self.word_buttons[0])
 
-    def _go_to_next_word(self):
-        """다음 단어로 이동하며 25개 완료 시 다시 섞음"""
-        self.current_index += 1
-        if self.current_index >= len(self.shuffled_words):
-            self._reset_word_list()
-        self._update_word_ui()
+    def _on_card_clicked(self, word_data: dict, clicked_btn: QPushButton):
+        """카드 선택 시 처리"""
+        for btn in self.word_buttons:
+            btn.setChecked(False)
+        clicked_btn.setChecked(True)
 
-    def _on_click_back(self):
-        """메인 메뉴 버튼 클릭 시 신호 발송"""
-        self.request_main_menu.emit()
+        self.lbl_current_word.setText(word_data["word"])
+        self.lbl_description.setText(word_data.get("desc", ""))
+        self.video_player.load_video(word_data["video_path"])
+
+    def _on_back_clicked(self):
+        self.video_player.stop()
+        self.back_to_main_requested.emit()
+
+    def hideEvent(self, event):
+        self.video_player.stop()
+        super().hideEvent(event)
