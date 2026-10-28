@@ -116,7 +116,7 @@ class MainView(QWidget):
     def paintEvent(self, event):
         """메인 화면 전체 배경에 배경화면 이미지를 창 크기에 맞게 꽉 채워 그림"""
         painter = QPainter(self)
-        pixmap = QPixmap("seoil_vg.png")
+        pixmap = QPixmap("seoil_bg.png")
         
         if not pixmap.isNull():
             scaled_pixmap = pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
