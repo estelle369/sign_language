@@ -8,12 +8,7 @@ from PyQt5.QtWidgets import (
 from .video_player import VideoPlayerWidget
 
 class PracticeView(QWidget):
-    """
-    [연습 모드] 9:16 전용 인터랙티브 수어 학습 화면
-    - 전체 배경색 #e3efff 적용
-    - 타이틀 글씨 대폭 확대 및 정중앙 배치
-    - 그리드 카드 형식으로 24개 단어 배치
-    """
+
     back_to_main_requested = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -51,7 +46,7 @@ class PracticeView(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # 💡 [핵심 수정] PracticeView 전체 배경을 #e3efff로 확실하게 채워줍니다!
+        self.bg_path = "blue_bg.png"
         self.setStyleSheet("PracticeView { background-color: #e3efff; }")
         
         main_layout = QVBoxLayout(self)
