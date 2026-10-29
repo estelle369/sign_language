@@ -21,7 +21,7 @@ class PracticeView(QWidget):
         
         # 24개 수어 단어 데이터셋
         self.word_dataset = [
-            {"word": "발가락", "video_path": "assets/videos/balgarak.mp4", "desc": "발가락을 가리키는 수어 동작입니다."},
+            {"word": "발가락", "video_path": "videos/sign_language_video.mp4", "desc": "발가락을 가리키는 수어 동작입니다."},
             {"word": "슬프다", "video_path": "assets/videos/seulpeuda.mp4", "desc": "눈물을 닦아내는 듯한 동작의 수어입니다."},
             {"word": "자극", "video_path": "assets/videos/jageuk.mp4", "desc": "신체나 마음에 자극을 주는 모습을 표현합니다."},
             {"word": "영아", "video_path": "assets/videos/yeongah.mp4", "desc": "어린 아기를 안아주는 형태의 수어입니다."},
