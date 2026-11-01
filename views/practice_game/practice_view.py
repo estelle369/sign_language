@@ -33,7 +33,7 @@ class PracticeView(QWidget):
             {"word": "막걸리", "video_path": "assets/videos/makgeolli.mp4", "desc": "탁주를 사발에 따라 마시는 동작의 수어입니다."},
             {"word": "부엌", "video_path": "assets/videos/bueok.mp4", "desc": "음식을 조리하는 공간인 부엌을 나타냅니다."},
             {"word": "사이다", "video_path": "assets/videos/saida.mp4", "desc": "톡 쏘는 탄산의 느낌을 표현한 수어입니다."},
-            {"word": "에어컨", "video_path": "assets/videos/aircon.mp4", "desc": "시원한 바람이 나오는 기계를 표현한 수어입니다."},
+            {"word": "이불", "video_path": "assets/videos/blanket.mp4", "desc": "이불을 덮는 동작을 표현한 수어입니다."},
             {"word": "주차장", "video_path": "assets/videos/juchajang.mp4", "desc": "차량이 주차되어 있는 공간을 나타냅니다."},
             {"word": "채팅", "video_path": "assets/videos/chatting.mp4", "desc": "손가락으로 글자를 타이핑하는 듯한 수어입니다."},
             {"word": "출근", "video_path": "assets/videos/chulgeun.mp4", "desc": "일터로 향하는 모습을 나타내는 수어입니다."},

@@ -1,5 +1,9 @@
 opencv-python
 mediapipe
 python-dotenv
+PyQt5
+numpy
+joblib
+scikit-learn==1.6.1  # 모델(models/random_forest_final_model.joblib) 저장 당시 버전과 같아야 함
 
 # pip install -r requirements.txt 
