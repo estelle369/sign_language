@@ -77,7 +77,7 @@ class MainView(QWidget):
         # 실전 게임 모드 카드 (#014099 테마 및 클릭 시그널 연결 완료)
         self.game_card = self._create_mode_card(
             title="실전 게임 모드",
-            desc="25개의 수어 단어를<br>제한시간 내에 터뜨려보세요!",
+            desc="24개의 수어 단어를<br>제한시간 내에 터뜨려보세요!",
             icon_path="real_bgimg.png", 
             btn_text="게임 도전하기",
             callback=self.request_game_mode.emit,
