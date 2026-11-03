@@ -91,7 +91,7 @@ class SegmentTrigger:
         self.rest_heights = heights
         return True
 
-    def update(self, xy, right_missing, left_missing, pose_missing, wrist_xy):
+    def process_frame(self, xy, right_missing, left_missing, pose_missing, wrist_xy):
         """
         프레임 하나를 넣는다.
 
@@ -114,7 +114,7 @@ class SegmentTrigger:
             is_down = (right_rise < END_THRESHOLD) and (left_rise < END_THRESHOLD)      # 양손 모두
 
         if self.state == STATE_WAITING:
-            self._update_waiting(xy, right_missing, left_missing, pose_missing, is_up)
+            self._process_waiting(xy, right_missing, left_missing, pose_missing, is_up)
             return None
 
         # 구간 진행 중: 결측 프레임도 버퍼에 넣는다
@@ -133,7 +133,7 @@ class SegmentTrigger:
         self._reset_segment()
         return segment
 
-    def _update_waiting(self, xy, right_missing, left_missing, pose_missing, is_up):
+    def _process_waiting(self, xy, right_missing, left_missing, pose_missing, is_up):
         """시작 대기 중: 연속으로 올라간 프레임을 버퍼에 모으다가 3번이 되면 구간을 시작한다."""
         if is_up is None:
             # 높이를 못 잰 프레임은 건너뛴다. 이미 세는 중이면 구간에 들어갈 수 있으니 버퍼에는 넣는다
