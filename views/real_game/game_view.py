@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QPainter, QPixmap
-from PyQt5.QtMultimedia import QSound  # 효과음 재생용
+from PyQt5.QtMultimedia import QSound  
 
 class GameView(QWidget):
 
@@ -15,12 +15,25 @@ class GameView(QWidget):
     def __init__(self):
         super().__init__()
         
-        # 리소스 경로
-        self.bg_path = "blue_bg.png"
-        self.logo_path = "seoil_logo.png"
-        self.char_img_path = "seoil_youngyoung_green.png"  
-        self.retry_img_path = "seoil_young_retry.png"
+
         
+# 🌟 현재 game_view.py 파일 위치(views/real_game/)를 기준으로 최상위 폴더(sign_language)를 찾아간 뒤, image 폴더로 진입합니다.
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        root_dir = os.path.abspath(os.path.join(current_dir, "../../"))
+        
+        # 🌟 image 폴더 안에 있는 실제 파일명을 정확한 경로로 조립합니다.
+        image_dir = os.path.join(root_dir, "image")
+        
+        self.bg_path = os.path.join(image_dir, "blue_bg.png")
+        self.logo_path = os.path.join(image_dir, "seoil_logo.png")
+        self.char_img_path = os.path.join(image_dir, "seoil_youngyoung_green.png")  
+        self.retry_img_path = os.path.join(image_dir, "seoil_young_retry.png")
+        
+        # print("--------------------------------------------------")
+        # print("1. image_dir 실제 경로:", image_dir)
+        # print("2. 배경 이미지(blue_bg.png) 전체 경로:", self.bg_path)
+        # print("3. 파일이 컴퓨터에 실제로 존재하나요? (True/False):", os.path.exists(self.bg_path))
+        # print("--------------------------------------------------")
         # 24개 전용 학습 단어
         self.all_words = [
             "발가락", "슬프다", "자극", "영아", "성실", 
@@ -51,13 +64,14 @@ class GameView(QWidget):
         self.init_ui()
 
     def paintEvent(self, event):
-        """전체화면 비율에 맞춰 메인 배경을 유연하게 스케일링합니다."""
         painter = QPainter(self)
         if os.path.exists(self.bg_path):
             bg_pixmap = QPixmap(self.bg_path)
+            # 🌟 1순위: 이미지를 정상적으로 그리되...
             painter.drawPixmap(self.rect(), bg_pixmap.scaled(self.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
         else:
-            painter.fillRect(self.rect(), Qt.white)
+            # 🌟 2순위: 파일이 없으면 눈에 확 띄는 빨간색으로 채워라!
+            painter.fillRect(self.rect(), Qt.red)
         super().paintEvent(event)
 
     def init_ui(self):

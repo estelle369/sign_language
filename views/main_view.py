@@ -15,6 +15,8 @@ class MainView(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.image_dir = os.path.join(self.current_dir, "image")
         self._load_custom_font()
         self._init_ui()
 
@@ -68,7 +70,6 @@ class MainView(QWidget):
         self.practice_card = self._create_mode_card(
             title="연습 모드",
             desc="차근차근 수어 동작을 보고<br>따라하며 학습합니다.",
-            icon_path="practice_mainbg.png",  
             btn_text="학습 시작하기",
             callback=self.request_practice_mode.emit,
             is_highlighted=False
@@ -78,7 +79,6 @@ class MainView(QWidget):
         self.game_card = self._create_mode_card(
             title="실전 게임 모드",
             desc="24개의 수어 단어를<br>제한시간 내에 터뜨려보세요!",
-            icon_path="real_bgimg.png", 
             btn_text="게임 도전하기",
             callback=self.request_game_mode.emit,
             is_highlighted=True
@@ -98,8 +98,17 @@ class MainView(QWidget):
         self.character_label.setAlignment(Qt.AlignCenter)
         self.character_label.setStyleSheet("background: transparent;")
         
-        # seoil_young 이미지 로드 및 크기 설정 (160x160)
-        char_pixmap = QPixmap("seoil_young.png")
+        bottom_layout = QHBoxLayout()
+        bottom_layout.addStretch(1) 
+        
+        self.character_label = QLabel()
+        self.character_label.setAlignment(Qt.AlignCenter)
+        self.character_label.setStyleSheet("background: transparent;")
+        
+        # 🌟 seoil_young 이미지 경로를 image_dir(image/ 폴더)과 안전하게 결합
+        char_path = os.path.join(self.image_dir, "seoil_young.png")
+        char_pixmap = QPixmap(char_path)
+        
         if not char_pixmap.isNull():
             scaled_char = char_pixmap.scaled(160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.character_label.setPixmap(scaled_char)
@@ -110,13 +119,19 @@ class MainView(QWidget):
             
         bottom_layout.addWidget(self.character_label)
         main_layout.addLayout(bottom_layout)
+            
+        bottom_layout.addWidget(self.character_label)
+        main_layout.addLayout(bottom_layout)
 
         self._apply_card_styles()
 
     def paintEvent(self, event):
         """메인 화면 전체 배경에 배경화면 이미지를 창 크기에 맞게 꽉 채워 그림"""
         painter = QPainter(self)
-        pixmap = QPixmap("seoil_bg.png")
+        
+        # 🌟 image_dir(image/ 폴더)과 결합하여 안전하게 배경 이미지 경로 설정
+        bg_path = os.path.join(self.image_dir, "seoil_bg.png")
+        pixmap = QPixmap(bg_path)
         
         if not pixmap.isNull():
             scaled_pixmap = pixmap.scaled(self.size(), Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
