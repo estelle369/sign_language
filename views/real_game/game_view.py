@@ -1,13 +1,11 @@
-# views/real_game/game_view.py
-
 import os
 import random
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QPushButton, QLineEdit, 
-    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox
+    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QPainter, QPixmap, QFont
+from PyQt5.QtGui import QPainter, QPixmap
 from PyQt5.QtMultimedia import QSound  # 효과음 재생용
 
 class GameView(QWidget):
@@ -67,7 +65,6 @@ class GameView(QWidget):
         root_layout.setContentsMargins(20, 20, 20, 20)
         root_layout.setSpacing(15)
 
-
         # ======================================================================
         # 1. 상단 헤더 바 (네이비 #014099 테마 적용)
         # ======================================================================
@@ -82,32 +79,22 @@ class GameView(QWidget):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(20, 10, 20, 10)
         
-        
         # 로고 및 타이틀
         logo_title_layout = QHBoxLayout()
         self.logo_label = QLabel()
-        self.logo_label.setStyleSheet("""
-            QLabel {
-                border: none;
-                background: transparent;
-            }
-        """)
+        self.logo_label.setStyleSheet("border: none; background: transparent;")
         if os.path.exists(self.logo_path):
             logo_pixmap = QPixmap(self.logo_path).scaled(35, 35, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.logo_label.setPixmap(logo_pixmap)
-
         else:
             self.logo_label.setText("[LOGO]")
             
-
-            
         self.title_label = QLabel("수어 실전 게임")
-        # 🌟 메인과 동일한 #014099 적용
         self.title_label.setStyleSheet("font-size: 22px; font-weight: bold; color: #014099; border: none; background: transparent;")
         logo_title_layout.addWidget(self.logo_label)
         logo_title_layout.addWidget(self.title_label)
 
-        # 정보 상태 라벨 (소프트 블루 #E6F0FA 배경과 #014099 글씨 조합)
+        # 정보 상태 라벨
         self.timer_label = QLabel("02:00")
         self.timer_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #014099; background-color: #E6F0FA; padding: 8px 18px; border-radius: 15px; border: 1.5px solid #B8D5FF;")
 
@@ -117,7 +104,7 @@ class GameView(QWidget):
         self.remain_label = QLabel(f"남은 단어: {len(self.all_words)} / {len(self.all_words)}")
         self.remain_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #014099; background-color: #E6F0FA; padding: 8px 18px; border-radius: 15px; border: 1.5px solid #B8D5FF;")
 
-        # 메인 메뉴 버튼 (모던한 딥블루 스타일)
+        # 메인 메뉴 버튼
         self.btn_top_main = QPushButton("메인 메뉴")
         self.btn_top_main.setStyleSheet("""
             QPushButton { font-size: 15px; font-weight: bold; color: #014099; background-color: #E6F0FA; padding: 8px 18px; border-radius: 15px; border: 1.5px solid #B8D5FF; }
@@ -152,10 +139,50 @@ class GameView(QWidget):
         # 24개 단어 라벨 위젯 사전
         self.word_widgets = {}
 
-        # 🌟 화면 중앙 효과 오버레이 (카운트다운 및 정답 시 캐릭터 이미지를 띄울 용도)
+        # 화면 중앙 효과 오버레이 (카운트다운 및 정답 시 캐릭터 이미지 용도)
         self.fx_overlay = QLabel(self.game_board_frame)
         self.fx_overlay.setAlignment(Qt.AlignCenter)
         self.fx_overlay.setHidden(True)
+
+        # 🌟 [추가] 게임 종료(클리어 / 시간 초과) 시 나타날 결과 오버레이 팝업
+        self.result_container = QWidget(self.game_board_frame)
+        result_layout = QVBoxLayout(self.result_container)
+        result_layout.setAlignment(Qt.AlignCenter)
+        result_layout.setSpacing(20)
+
+        self.lbl_result_title = QLabel("게임 클리어! 🎉", alignment=Qt.AlignCenter)
+        self.lbl_result_title.setStyleSheet("font-size: 32px; font-weight: bold; color: #014099; background: transparent; border: none;")
+        
+        self.lbl_result_desc = QLabel("점수: 0점", alignment=Qt.AlignCenter)
+        self.lbl_result_desc.setStyleSheet("font-size: 20px; font-weight: bold; color: #334155; background: transparent; border: none;")
+
+        btn_retry = QPushButton("다시 하기")
+        btn_retry.setStyleSheet("""
+            QPushButton { font-size: 18px; font-weight: bold; color: white; background-color: #014099; padding: 12px; border-radius: 12px; border: none; }
+            QPushButton:hover { background-color: #01307A; }
+        """)
+        btn_retry.clicked.connect(self._reset_game_state)
+
+        btn_go_main = QPushButton("메인 화면으로 가기")
+        btn_go_main.setStyleSheet("""
+            QPushButton { font-size: 18px; font-weight: bold; color: #014099; background-color: #E6F0FA; padding: 12px; border-radius: 12px; border: 1.5px solid #B8D5FF; }
+            QPushButton:hover { background-color: #D0E3FF; }
+        """)
+        btn_go_main.clicked.connect(self._on_click_back)
+
+        result_layout.addWidget(self.lbl_result_title)
+        result_layout.addWidget(self.lbl_result_desc)
+        result_layout.addWidget(btn_retry)
+        result_layout.addWidget(btn_go_main)
+
+        self.result_container.setStyleSheet("""
+            QWidget {
+                background-color: rgba(255, 255, 255, 0.95);
+                border-radius: 20px;
+                border: 2px solid #014099;
+            }
+        """)
+        self.result_container.setHidden(True)
 
         root_layout.addWidget(self.game_board_frame, 1)
 
@@ -198,13 +225,28 @@ class GameView(QWidget):
         self._reset_game_state()
 
     def resizeEvent(self, event):
-        """창 크기가 바뀔 때 오버레이 레이어 크기 자동 조율"""
+        """창 크기가 바뀔 때 오버레이 레이어 및 결과 팝업 크기 자동 조율"""
         super().resizeEvent(event)
         if hasattr(self, 'game_board_frame') and self.game_board_frame:
-            self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
+            w = self.game_board_frame.width()
+            h = self.game_board_frame.height()
+            self.fx_overlay.setGeometry(0, 0, w, h)
+            
+            # 🌟 [추가] 결과 팝업을 보드판 정중앙에 반응형으로 배치 (크기: 380x300)
+            popup_w, popup_h = 380, 300
+            self.result_container.setGeometry(
+                (w - popup_w) // 2,
+                (h - popup_h) // 2,
+                popup_w, popup_h
+            )
 
     def _reset_game_state(self):
         """상태 초기화 및 24개 단어 위치 섞어 재배치 (가로 4개 x 세로 6개 구조)"""
+        self.game_timer.stop()
+        self.countdown_timer.stop()
+        self.fx_timer.stop()
+        self.result_container.setHidden(True)
+
         self.score = 0
         self.time_left = 120
         self.countdown_val = 3
@@ -225,7 +267,6 @@ class GameView(QWidget):
         random.shuffle(shuffled)
 
         for idx, word in enumerate(shuffled):
-            # 🌟 요청하신 가로 4개, 세로 6개 배치 공식 (idx // 4, idx % 4)
             row = idx // 4
             col = idx % 4
             
@@ -246,7 +287,7 @@ class GameView(QWidget):
     def _start_countdown(self):
         """3, 2, 1 카운트다운 연출"""
         self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
-        self.fx_overlay.clear()  # 이미지 초기화 후 텍스트 설정
+        self.fx_overlay.clear() 
         self.fx_overlay.setText(str(self.countdown_val))
         self.fx_overlay.setStyleSheet("""
             QLabel {
@@ -279,8 +320,9 @@ class GameView(QWidget):
             self.input_field.setEnabled(True)
             self.input_field.setFocus()
             self.game_timer.start(1000)
-# ======================================================================
-    # 정답/오답 판정 및 효과 연출 (캐릭터 이미지 등장 + 효과음)
+
+    # ======================================================================
+    # 정답/오답 판정 및 효과 연출
     # ======================================================================
     def _check_answer(self):
         if self.countdown_val > 0:
@@ -292,7 +334,7 @@ class GameView(QWidget):
         if user_input in self.word_widgets and user_input in self.remaining_words:
             card_widget = self.word_widgets[user_input]
             
-            # 🌟 정답 시 카드가 노란색으로 변하며 사라지는 시각적 피드백
+            # 정답 시 카드가 노란색으로 번쩍인 후 🌟 [수정] 통째로 숨기지 않고 텍스트만 지우며 빈 자리(틀)를 유지
             card_widget.setStyleSheet("""
                 QLabel {
                     font-size: 18px; font-weight: bold; color: #B45309;
@@ -300,7 +342,18 @@ class GameView(QWidget):
                     padding: 15px; border-radius: 16px; border: 2px solid #EAB308;
                 }
             """)
-            QTimer.singleShot(250, lambda: card_widget.setVisible(False)) # 살짝 노란색으로 번쩍였다가 숨김
+            
+            def make_slot_empty(widget=card_widget):
+                widget.setText("")  # 글자만 없앰
+                widget.setStyleSheet("""
+                    QLabel {
+                        background-color: rgba(240, 244, 248, 0.4);
+                        border-radius: 16px;
+                        border: 2px dashed #CBD5E1;
+                    }
+                """) # 🌟 빈 투명/점선 박스로 유지되어 그리드 전체 크기가 절대 찌그러지거나 밀리지 않음!
+
+            QTimer.singleShot(250, make_slot_empty)
             
             self.remaining_words.remove(user_input)
             self.score += 100  # 단어당 100점
@@ -308,47 +361,35 @@ class GameView(QWidget):
             self.score_label.setText(f"SCORE: {self.score}점")
             self.remain_label.setText(f"남은 단어: {len(self.remaining_words)} / {len(self.all_words)}")
             
-            # 🌟 정답 효과음 재생 (correct.wav 파일이 있을 경우)
             if os.path.exists("correct.wav"):
                 QSound.play("correct.wav")
 
-            # 🌟 정답 캐릭터(seoil_youngyoung_green.png) 등장 연출 호출 (is_correct=True)
             self._show_character_popup(is_correct=True)
             
-            # 게임 올클리어 체크
+            # 게임 올클리어 체크 🌟 [수정] QMessageBox 대신 커스텀 결과 오버레이 호출
             if len(self.remaining_words) == 0:
                 self.game_timer.stop()
-                QMessageBox.information(self, "클리어! 🎉", f"모든 수어 단어를 맞혔습니다!\n최종 점수: {self.score}점")
+                self._show_game_result("게임 클리어! 🎉", f"모든 단어를 맞혔습니다!\n최종 점수: {self.score}점")
 
-        # 2) 틀렸거나(오답) 화면에 없는 단어를 입력한 경우 🌟
+        # 2) 틀렸거나 오답인 경우
         elif user_input:
-            # (선택사항) 틀렸을 때 오답 효과음이 있다면 재생
             if os.path.exists("wrong.wav"):
                 QSound.play("wrong.wav")
-                
-            # 🌟 오답 캐릭터(seoil_young_retry.png) 등장 연출 호출 (is_correct=False)
             self._show_character_popup(is_correct=False)
 
         self.input_field.clear()
         self.input_field.setFocus()
 
     def _show_character_popup(self, is_correct: bool):
-        """
-        is_correct가 True면 정답 캐릭터(초록이), False면 오답(재시도) 캐릭터를 화면 중앙에 띄웁니다.
-        """
         self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
         self.fx_overlay.clear()
         
-        # 상황에 따라 이미지 경로 선택
         target_path = self.char_img_path if is_correct else self.retry_img_path
-        
         if os.path.exists(target_path):
             pixmap = QPixmap(target_path)
-            # 캐릭터 크기를 적절히 (예: 220x220) 유지하며 부드럽게 스케일링
             scaled_pixmap = pixmap.scaled(220, 220, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.fx_overlay.setPixmap(scaled_pixmap)
         else:
-            # 이미지 파일이 없을 경우 대비용 텍스트
             fallback_text = "✨ O ✨" if is_correct else "❌ X ❌"
             self.fx_overlay.setText(fallback_text)
             self.fx_overlay.setStyleSheet("font-size: 80px; font-weight: bold; color: #E74C3C; background: transparent;")
@@ -356,8 +397,6 @@ class GameView(QWidget):
         self.fx_overlay.setStyleSheet("background-color: rgba(255, 255, 255, 0.75); border-radius: 20px;")
         self.fx_overlay.setHidden(False)
         self.fx_overlay.raise_()  
-        
-        # 0.8초(800ms) 동안 보여준 뒤 자동으로 숨기기
         self.fx_timer.start(800)
 
     def _hide_fx_overlay(self):
@@ -369,11 +408,20 @@ class GameView(QWidget):
         seconds = self.time_left % 60
         self.timer_label.setText(f"{minutes:02d}:{seconds:02d}")
 
+        # 🌟 [수정] 시간 초과 시에도 QMessageBox 대신 깔끔한 결과 오버레이 호출
         if self.time_left <= 0:
             self.game_timer.stop()
             self.timer_label.setText("TIME OVER")
             self.input_field.setEnabled(False)
-            QMessageBox.warning(self, "시간 초과", "제한 시간이 종료되었습니다!")
+            self._show_game_result("시간 초과! ⏰", f"제한 시간이 종료되었습니다.\n최종 점수: {self.score}점")
+
+    def _show_game_result(self, title: str, desc: str):
+        """게임 종료 시 중앙에 결과 오버레이 팝업을 띄우고 가장 위로 올림"""
+        self.input_field.setEnabled(False)
+        self.lbl_result_title.setText(title)
+        self.lbl_result_desc.setText(desc)
+        self.result_container.setHidden(False)
+        self.result_container.raise_()
 
     def _on_click_back(self):
         self.game_timer.stop()
