@@ -1,12 +1,14 @@
 import os
 import random
+import sys
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QPushButton, QLineEdit, 
-    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout
-)
+    QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
+    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
 from PyQt5.QtGui import QPainter, QPixmap
 from PyQt5.QtMultimedia import QSound  # 효과음 재생용
+
+from views.real_game.recognition_thread import RecognitionThread
 
 class GameView(QWidget):
 
@@ -35,7 +37,13 @@ class GameView(QWidget):
         self.remaining_words = []
         self.time_left = 120
         self.countdown_val = 3
-        
+        self.is_playing = False   # 게임 타이머가 도는 동안만 True. 이때만 인식 결과를 받는다
+
+        # 웹캠 수어 인식 스레드 (게임 화면에 들어올 때 시작, 게임이 끝나거나 나갈 때 정지)
+        self.recognition_thread = None
+        # 프로그램을 닫을 때 스레드가 돌고 있으면 정지한다 (돌고 있는 QThread 가 지워지면 프로그램이 비정상 종료된다)
+        QApplication.instance().aboutToQuit.connect(self._stop_recognition)
+
         # 타이머 정의
         self.game_timer = QTimer(self)
         self.game_timer.timeout.connect(self._update_timer)
@@ -185,35 +193,6 @@ class GameView(QWidget):
         self.result_container.setHidden(True)
 
         root_layout.addWidget(self.game_board_frame, 1)
-
-        # ======================================================================
-        # 3. 하단 입력 패널
-        # ======================================================================
-        input_frame = QFrame()
-        input_frame.setStyleSheet("background-color: rgba(255, 255, 255, 0.9); border-radius: 20px; border: 2px solid #014099;")
-        input_layout = QHBoxLayout(input_frame)
-        input_layout.setContentsMargins(15, 10, 15, 10)
-        input_layout.setSpacing(10)
-
-        self.input_field = QLineEdit()
-        self.input_field.setPlaceholderText("단어를 입력하고 Enter를 누르세요...")
-        self.input_field.setStyleSheet("""
-            QLineEdit { font-size: 16px; padding: 12px; border: 2px solid #93C5FD; border-radius: 12px; background-color: #FFFFFF; color: #333333; }
-            QLineEdit:focus { border: 2px solid #014099; }
-        """)
-        self.input_field.returnPressed.connect(self._check_answer)
-
-        self.btn_submit = QPushButton("입력")
-        self.btn_submit.setStyleSheet("""
-            QPushButton { font-size: 16px; font-weight: bold; color: white; background-color: #014099; padding: 12px 25px; border-radius: 12px; border: none; }
-            QPushButton:hover { background-color: #01307A; }
-        """)
-        self.btn_submit.clicked.connect(self._check_answer)
-
-        input_layout.addWidget(self.input_field, 1)
-        input_layout.addWidget(self.btn_submit)
-
-        root_layout.addWidget(input_frame)
         self.setLayout(root_layout)
 
     # ======================================================================
@@ -251,8 +230,7 @@ class GameView(QWidget):
         self.score_label.setText("SCORE: 0점")
         self.remain_label.setText(f"남은 단어: {len(self.all_words)} / {len(self.all_words)}")
         self.timer_label.setText("02:00")
-        self.input_field.clear()
-        self.input_field.setEnabled(False)
+        self.is_playing = False
 
         for w in self.word_widgets.values():
             self.board_grid.removeWidget(w)
@@ -278,6 +256,8 @@ class GameView(QWidget):
             self.board_grid.addWidget(word_chip, row, col)
             self.word_widgets[word] = word_chip
 
+        # 카운트다운 동안 모델을 불러오고 카메라를 켜 둔다
+        self._start_recognition()
         self._start_countdown()
 
     def _start_countdown(self):
@@ -300,6 +280,9 @@ class GameView(QWidget):
             self.fx_overlay.setText(str(self.countdown_val))
             self.fx_overlay.raise_()
         elif self.countdown_val == 0:
+            # "1"이 끝난 직후: 사용자가 아직 차렷 자세일 때 쉬는 높이를 잰다
+            if self.recognition_thread is not None:
+                self.recognition_thread.request_calibration()
             self.fx_overlay.setText("START!")
             self.fx_overlay.setStyleSheet("""
                 QLabel {
@@ -311,22 +294,44 @@ class GameView(QWidget):
         else:
             self.countdown_timer.stop()
             self.fx_overlay.setHidden(True)
-            self.input_field.setEnabled(True)
-            self.input_field.setFocus()
+            self.is_playing = True
             self.game_timer.start(1000)
 
     # ======================================================================
     # 정답/오답 판정 및 효과 연출 (🌟 효과음 파일명 적용 부분)
+    # 웹캠 수어 인식 스레드 시작·정지
     # ======================================================================
-    def _check_answer(self):
-        if self.countdown_val > 0:
-            return
+    def _start_recognition(self):
+        self._stop_recognition()   # 이전 게임의 스레드가 남아 있으면 먼저 정지
+        self.recognition_thread = RecognitionThread()
+        self.recognition_thread.word_recognized.connect(self._on_word_recognized)
+        self.recognition_thread.error_occurred.connect(self._on_recognition_error)
+        self.recognition_thread.start()
 
-        user_input = self.input_field.text().strip()
+    def _stop_recognition(self):
+        if self.recognition_thread is not None:
+            self.recognition_thread.stop()   # 스레드가 끝날 때까지 기다린다 (카메라가 꺼진다)
+            self.recognition_thread = None
+
+    def _on_recognition_error(self, message: str):
+        """카메라·모델을 열지 못하면 게임을 할 수 없으므로 프로그램을 종료한다 (임시 처리)."""
+        print(f"[수어 인식 오류] {message}", file=sys.stderr)
+        QApplication.instance().exit(1)
+
+    # ======================================================================
+    # 정답/오답 판정 및 효과 연출 (캐릭터 이미지 등장 + 효과음)
+    # ======================================================================
+    def _on_word_recognized(self, word: str, prob: float):
+        """
+        인식 스레드가 확률 0.5 이상으로 인식한 단어를 받는다.
+        0.5 미만은 스레드가 보내지 않으므로 피드백이 없다.
+        """
+        if not self.is_playing:
+            return   # 카운트다운 중이거나 게임이 끝난 뒤에 도착한 결과는 무시
 
         # 1) 정답을 맞힌 경우
-        if user_input in self.word_widgets and user_input in self.remaining_words:
-            card_widget = self.word_widgets[user_input]
+        if word in self.word_widgets and word in self.remaining_words:
+            card_widget = self.word_widgets[word]
             
             card_widget.setStyleSheet("""
                 QLabel {
@@ -348,8 +353,8 @@ class GameView(QWidget):
 
             QTimer.singleShot(250, make_slot_empty)
             
-            self.remaining_words.remove(user_input)
-            self.score += 100  
+            self.remaining_words.remove(word)
+            self.score += 100  # 단어당 100점
             
             self.score_label.setText(f"SCORE: {self.score}점")
             self.remain_label.setText(f"남은 단어: {len(self.remaining_words)} / {len(self.all_words)}")
@@ -362,18 +367,18 @@ class GameView(QWidget):
             
             if len(self.remaining_words) == 0:
                 self.game_timer.stop()
+                self.is_playing = False
+                self._stop_recognition()
                 self._show_game_result("게임 클리어! 🎉", f"모든 단어를 맞혔습니다!\n최종 점수: {self.score}점")
 
         # 2) 틀렸거나 오답인 경우
-        elif user_input:
+        else:
             # 🌟 [적용] 오답 효과음 파일: failed_sound.wav
             if os.path.exists("failed_sound.wav"):
                 QSound.play("failed_sound.wav")
-                
-            self._show_character_popup(is_correct=False)
 
-        self.input_field.clear()
-        self.input_field.setFocus()
+            # 🌟 오답 캐릭터(seoil_young_retry.png) 등장 연출 호출 (is_correct=False)
+            self._show_character_popup(is_correct=False)
 
     def _show_character_popup(self, is_correct: bool):
         self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
@@ -406,20 +411,22 @@ class GameView(QWidget):
         if self.time_left <= 0:
             self.game_timer.stop()
             self.timer_label.setText("TIME OVER")
-            self.input_field.setEnabled(False)
             self._show_game_result("시간 초과! ⏰", f"제한 시간이 종료되었습니다.\n최종 점수: {self.score}점")
 
     def _show_game_result(self, title: str, desc: str):
-        self.input_field.setEnabled(False)
         self.lbl_result_title.setText(title)
         self.lbl_result_desc.setText(desc)
         self.result_container.setHidden(False)
         self.result_container.raise_()
-
+        self.is_playing = False
+        self._stop_recognition()
+        
     def _on_click_back(self):
         self.game_timer.stop()
         self.countdown_timer.stop()
         self.fx_timer.stop()
+        self.is_playing = False
+        self._stop_recognition()
         self.request_main_menu.emit()
 
     def hideEvent(self, event):
@@ -427,3 +434,5 @@ class GameView(QWidget):
         self.game_timer.stop()
         self.countdown_timer.stop()
         self.fx_timer.stop()
+        self.is_playing = False
+        self._stop_recognition()
