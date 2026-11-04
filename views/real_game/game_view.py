@@ -29,12 +29,7 @@ class GameView(QWidget):
         self.char_img_path = os.path.join(image_dir, "seoil_youngyoung_green.png")  
         self.retry_img_path = os.path.join(image_dir, "seoil_young_retry.png")
         
-        # print("--------------------------------------------------")
-        # print("1. image_dir 실제 경로:", image_dir)
-        # print("2. 배경 이미지(blue_bg.png) 전체 경로:", self.bg_path)
-        # print("3. 파일이 컴퓨터에 실제로 존재하나요? (True/False):", os.path.exists(self.bg_path))
-        # print("--------------------------------------------------")
-        # 24개 전용 학습 단어
+
         self.all_words = [
             "발가락", "슬프다", "자극", "영아", "성실", 
             "독서", "면역", "배드민턴", "변비", "불면증", 
@@ -64,14 +59,13 @@ class GameView(QWidget):
         self.init_ui()
 
     def paintEvent(self, event):
+        """전체화면 비율에 맞춰 메인 배경을 유연하게 스케일링합니다."""
         painter = QPainter(self)
         if os.path.exists(self.bg_path):
             bg_pixmap = QPixmap(self.bg_path)
-            # 🌟 1순위: 이미지를 정상적으로 그리되...
             painter.drawPixmap(self.rect(), bg_pixmap.scaled(self.size(), Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
         else:
-            # 🌟 2순위: 파일이 없으면 눈에 확 띄는 빨간색으로 채워라!
-            painter.fillRect(self.rect(), Qt.red)
+            painter.fillRect(self.rect(), Qt.white)
         super().paintEvent(event)
 
     def init_ui(self):

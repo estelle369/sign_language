@@ -15,7 +15,7 @@ class MainView(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.image_dir = os.path.join(self.current_dir, "image")
         self._load_custom_font()
         self._init_ui()
