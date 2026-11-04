@@ -108,7 +108,7 @@ class RecognitionThread(QThread):
 
     def _recognize(self, model, label_names, segment):
         """
-        잘라낸 구간 하나를 전처리하고 단어를 예측한다.
+        잘라낸 구간 하나를 전처리하고 단어를 예측한다. 결과는 터미널에 로그로 남긴다.
         반환: (단어, 최대 확률). 결측으로 인식하지 않거나 확률이 기준 미만이면 단어는 None
         """
         seg_xy, seg_right_missing, seg_left_missing, seg_pose_missing = segment
@@ -116,5 +116,18 @@ class RecognitionThread(QThread):
         sequence = preprocessor.preprocess_segment(
             frame_numbers, seg_xy, seg_right_missing, seg_left_missing, seg_pose_missing)
         if sequence is None:
+            print(f"[인식] 구간 {len(seg_xy)}프레임 → 인식 안 함 (전처리 제외) | 최장 연속 결측: "
+                  f"오른손 {preprocessor.longest_missing_run(seg_right_missing)}, "
+                  f"왼손 {preprocessor.longest_missing_run(seg_left_missing)}, "
+                  f"Pose {preprocessor.longest_missing_run(seg_pose_missing)} "
+                  f"(기준: {preprocessor.MAX_MISSING_RUN} 초과면 제외)", flush=True)
             return None, 0.0
-        return predictor.predict_word(model, label_names, sequence)
+
+        probabilities = predictor.predict_probabilities(model, sequence)
+        word, prob = predictor.pick_word(label_names, probabilities)
+
+        top = predictor.top_words(label_names, probabilities, count=3)
+        top_text = " | ".join(f"{rank + 1}위 {name} {p:.2f}" for rank, (name, p) in enumerate(top))
+        result_text = "판정" if word is not None else f"기준 미만 ({predictor.PROB_THRESHOLD})"
+        print(f"[인식] 구간 {len(seg_xy)}프레임 → {result_text} | {top_text}", flush=True)
+        return word, prob
