@@ -14,7 +14,7 @@ import numpy as np
 
 
 MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
-MODEL_PATH = os.path.join(MODEL_DIR, "random_forest_final_model.joblib")
+MODEL_PATH = os.path.join(MODEL_DIR, "rf_noise_model.joblib")
 LABEL_MAP_PATH = os.path.join(MODEL_DIR, "label_map.csv")
 
 PROB_THRESHOLD = 0.5  # 확률임계값
@@ -46,6 +46,36 @@ def flatten_sequence(sequence):
     return sequence.reshape(1, -1).astype(np.float32)
 
 
+def predict_probabilities(model, sequence):
+    """
+    구간 하나의 단어별 확률을 구한다.
+
+    sequence : (72, 44, 2) 전처리가 끝난 구간
+    반환     : (24,) 단어별 확률. 순서는 label_map.csv 순서
+    """
+    return model.predict_proba(flatten_sequence(sequence))[0]
+
+
+def top_words(label_names, probabilities, count=3):
+    """확률이 높은 순서로 (단어 이름, 확률) count개를 돌려준다. 로그 출력용."""
+    order = np.argsort(probabilities)[::-1][:count]
+    return [(label_names[int(i)], float(probabilities[int(i)])) for i in order]
+
+
+def pick_word(label_names, probabilities):
+    """
+    단어별 확률에서 최종 단어를 고른다.
+
+    반환 : (단어 이름, 최대 확률). 확률이 PROB_THRESHOLD 미만이면 단어 이름은 None
+    """
+    best_label = int(np.argmax(probabilities))
+    best_prob = float(probabilities[best_label])
+
+    if best_prob < PROB_THRESHOLD:
+        return None, best_prob
+    return label_names[best_label], best_prob
+
+
 def predict_word(model, label_names, sequence):
     """
     구간 하나의 단어를 예측한다.
@@ -53,10 +83,4 @@ def predict_word(model, label_names, sequence):
     sequence : (72, 44, 2) 전처리가 끝난 구간
     반환     : (단어 이름, 최대 확률). 확률이 PROB_THRESHOLD 미만이면 단어 이름은 None
     """
-    probabilities = model.predict_proba(flatten_sequence(sequence))[0]  # (24,)
-    best_label = int(np.argmax(probabilities))
-    best_prob = float(probabilities[best_label])
-
-    if best_prob < PROB_THRESHOLD:
-        return None, best_prob
-    return label_names[best_label], best_prob
+    return pick_word(label_names, predict_probabilities(model, sequence))
