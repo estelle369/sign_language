@@ -46,7 +46,7 @@ class MainView(QWidget):
         header_layout.setSpacing(10)
 
         subtitle_label = QLabel("수어 학습 키오스크")
-        subtitle_label.setFont(QFont(MainView.CUSTOM_FONT_FAMILY, 26, QFont.Bold))
+        subtitle_label.setFont(QFont(MainView.CUSTOM_FONT_FAMILY, 50, QFont.Bold))
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setStyleSheet("color: #014099; background: transparent;")
 
@@ -59,7 +59,7 @@ class MainView(QWidget):
         header_layout.addWidget(desc_label)
 
         main_layout.addLayout(header_layout)
-        main_layout.addStretch(1)
+        main_layout.addStretch(2)
 
         # 2. 중앙 카드 선택 영역 (연습 모드 / 실전 게임 모드)
         cards_layout = QHBoxLayout()
@@ -110,11 +110,11 @@ class MainView(QWidget):
         char_pixmap = QPixmap(char_path)
         
         if not char_pixmap.isNull():
-            scaled_char = char_pixmap.scaled(160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            scaled_char = char_pixmap.scaled(320, 320, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.character_label.setPixmap(scaled_char)
         else:
             self.character_label.setText("👋 (용용이)")
-            self.character_label.setFont(QFont(MainView.CUSTOM_FONT_FAMILY, 16, QFont.Bold))
+            self.character_label.setFont(QFont(MainView.CUSTOM_FONT_FAMILY, 30, QFont.Bold))
             self.character_label.setStyleSheet("color: #014099; background: transparent;")
             
         bottom_layout.addWidget(self.character_label)
