@@ -1,7 +1,7 @@
 """
 테스트 데이터 수집 (게임과 같은 파이프라인)
 
-    카운트다운 5초 → 캘리브레이션 → 손목 트리거로 동작 구간 자르기 → 전처리 → (72, 44, 2) 저장
+    카운트다운 3초 → 캘리브레이션 → 손목 트리거로 동작 구간 자르기 → 전처리 → (72, 44, 2) 저장
 
     - 한 번 실행에 단어 하나(--word)만 --reps 번 수집하고 끝난다.
       예시 영상을 보고 동작을 익힌 뒤 단어마다 다시 실행한다
@@ -51,7 +51,7 @@ PERSON_PREFIX = "TEST"   # 학습 데이터(REAL01 ~)와 구분한다
 
 CAMERA_INDEX = 0
 CAMERA_READ_TIMEOUT_SECONDS = 3.0
-COUNTDOWN_SECONDS = 5
+COUNTDOWN_SECONDS = 3
 RESULT_SHOW_SECONDS = 1.5   # 저장 완료(초록) / 결측(빨강) 화면을 보여주는 시간
 VIDEO_FPS = 30              # 실제 처리 속도는 약 28 ~ 29fps (근사값)
 WINDOW_NAME = "collect"
