@@ -1,9 +1,9 @@
-opencv-python
-mediapipe
-python-dotenv
-PyQt5
-numpy
-joblib
-scikit-learn==1.6.1  # 모델(models/random_forest_final_model.joblib) 저장 당시 버전과 같아야 함
+opencv-python==5.0.0.93
+mediapipe==1.2.0
+PyQt5==5.15.11
+numpy==2.5.4
+joblib==1.6.0
+scikit-learn==1.9.1  # models/*.joblib 저장 당시 버전과 같아야 함. 학습 환경도 같은 버전 사용
+python-dotenv==1.2.4
 
-# pip install -r requirements.txt 
+# pip install -r requirements.txt  (Python 3.14)
