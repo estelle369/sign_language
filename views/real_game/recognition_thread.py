@@ -5,7 +5,7 @@
 
 사용법 (게임 화면에서)
     thread = RecognitionThread()
-    thread.word_recognized.connect(...)    # 확률 0.5 이상으로 인식한 단어만 온다
+    thread.word_recognized.connect(...)
     thread.error_occurred.connect(...)     # 카메라·모델을 열지 못했을 때
     thread.start()                         # 카운트다운 시작과 함께. 모델을 불러오고 카메라를 켠다
     thread.request_calibration()           # 카운트다운 "1"이 끝난 직후. 다음 프레임부터 쉬는 높이를 잰다
