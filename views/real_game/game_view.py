@@ -1,11 +1,12 @@
 import os
 import random
 import sys
+import cv2
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
-    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
+    QApplication, QWidget, QLabel, QPushButton, 
+    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QPainter, QPixmap
+from PyQt5.QtGui import QPainter, QPixmap, QImage
 from PyQt5.QtMultimedia import QSound  
 
 from views.real_game.recognition_thread import RecognitionThread
@@ -17,13 +18,9 @@ class GameView(QWidget):
     def __init__(self):
         super().__init__()
         
-
-        
-# 🌟 현재 game_view.py 파일 위치(views/real_game/)를 기준으로 최상위 폴더(sign_language)를 찾아간 뒤, image 폴더로 진입합니다.
+        # 파일 경로 설정
         current_dir = os.path.dirname(os.path.abspath(__file__))
         root_dir = os.path.abspath(os.path.join(current_dir, "../../"))
-        
-        # 🌟 image 폴더 안에 있는 실제 파일명을 정확한 경로로 조립합니다.
         image_dir = os.path.join(root_dir, "image")
         
         self.bg_path = os.path.join(image_dir, "blue_bg.png")
@@ -31,7 +28,6 @@ class GameView(QWidget):
         self.char_img_path = os.path.join(image_dir, "seoil_youngyoung_green.png")  
         self.retry_img_path = os.path.join(image_dir, "seoil_young_retry.png")
         
-
         self.all_words = [
             "발가락", "슬프다", "자극", "영아", "성실", 
             "독서", "면역", "배드민턴", "변비", "불면증", 
@@ -45,11 +41,15 @@ class GameView(QWidget):
         self.remaining_words = []
         self.time_left = 120
         self.countdown_val = 3
-        self.is_playing = False   # 게임 타이머가 도는 동안만 True. 이때만 인식 결과를 받는다
+        self.is_playing = False   
 
-        # 웹캠 수어 인식 스레드 (게임 화면에 들어올 때 시작, 게임이 끝나거나 나갈 때 정지)
+        # 대기 및 인식 카운트 변수
+        self.ready_frame_count = 0        
+        self.required_frames = 20         # 약 0.6초 동안 자세 유지 시 시작
+        self.is_waiting_for_user = True   
+        self.is_counting_down = False     
+
         self.recognition_thread = None
-        # 프로그램을 닫을 때 스레드가 돌고 있으면 정지한다 (돌고 있는 QThread 가 지워지면 프로그램이 비정상 종료된다)
         QApplication.instance().aboutToQuit.connect(self._stop_recognition)
 
         # 타이머 정의
@@ -59,7 +59,6 @@ class GameView(QWidget):
         self.countdown_timer = QTimer(self)
         self.countdown_timer.timeout.connect(self._run_countdown)
         
-        # 캐릭터 이미지 팝업을 잠시 보여주었다가 숨기기 위한 타이머 (약 0.8초)
         self.fx_timer = QTimer(self)
         self.fx_timer.setSingleShot(True)
         self.fx_timer.timeout.connect(self._hide_fx_overlay)
@@ -67,7 +66,6 @@ class GameView(QWidget):
         self.init_ui()
 
     def paintEvent(self, event):
-        """전체화면 비율에 맞춰 메인 배경을 유연하게 스케일링합니다."""
         painter = QPainter(self)
         if os.path.exists(self.bg_path):
             bg_pixmap = QPixmap(self.bg_path)
@@ -81,9 +79,7 @@ class GameView(QWidget):
         root_layout.setContentsMargins(20, 20, 20, 20)
         root_layout.setSpacing(15)
 
-        # ======================================================================
-        # 1. 상단 헤더 바 (네이비 #014099 테마 적용)
-        # ======================================================================
+        # 1. 상단 헤더 바
         header_frame = QFrame()
         header_frame.setStyleSheet("""
             QFrame {
@@ -95,7 +91,6 @@ class GameView(QWidget):
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(20, 10, 20, 10)
         
-        # 로고 및 타이틀
         logo_title_layout = QHBoxLayout()
         self.logo_label = QLabel()
         self.logo_label.setStyleSheet("border: none; background: transparent;")
@@ -110,7 +105,6 @@ class GameView(QWidget):
         logo_title_layout.addWidget(self.logo_label)
         logo_title_layout.addWidget(self.title_label)
 
-        # 정보 상태 라벨
         self.timer_label = QLabel("02:00")
         self.timer_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #014099; background-color: #E6F0FA; padding: 8px 18px; border-radius: 15px; border: 1.5px solid #B8D5FF;")
 
@@ -120,7 +114,6 @@ class GameView(QWidget):
         self.remain_label = QLabel(f"남은 단어: {len(self.all_words)} / {len(self.all_words)}")
         self.remain_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #014099; background-color: #E6F0FA; padding: 8px 18px; border-radius: 15px; border: 1.5px solid #B8D5FF;")
 
-        # 메인 메뉴 버튼
         self.btn_top_main = QPushButton("메인 메뉴")
         self.btn_top_main.setStyleSheet("""
             QPushButton { font-size: 15px; font-weight: bold; color: #014099; background-color: #E6F0FA; padding: 8px 18px; border-radius: 15px; border: 1.5px solid #B8D5FF; }
@@ -137,30 +130,42 @@ class GameView(QWidget):
 
         root_layout.addWidget(header_frame)
 
-        # ======================================================================
-        # 2. 게임판 영역 및 효과 오버레이
-        # ======================================================================
+        # 2. 게임판 영역 (단어들이 들어가는 곳)
         self.game_board_frame = QFrame()
         self.game_board_frame.setStyleSheet("""
             QFrame {
-                background-color: rgba(255, 255, 255, 0.75);
+                background-color: rgba(255, 255, 255, 0.85);
                 border-radius: 20px;
                 border: 2px solid #014099;
             }
         """)
+        
         self.board_grid = QGridLayout(self.game_board_frame)
         self.board_grid.setContentsMargins(20, 20, 20, 20)
         self.board_grid.setSpacing(12)
 
-        # 24개 단어 라벨 위젯 사전
+        # 웹캠 미리보기 화면: 게임판 전체를 가득 채우는 화면
+        self.webcam_preview_label = QLabel(self.game_board_frame)
+        self.webcam_preview_label.setAlignment(Qt.AlignCenter)
+        self.webcam_preview_label.setStyleSheet("""
+            QLabel {
+                background-color: #0f172a;
+                border-radius: 16px;
+                color: white;
+                font-size: 20px;
+                font-weight: bold;
+            }
+        """)
+        self.webcam_preview_label.setText("웹캠 연결 및 모델 로딩 중...")
+
         self.word_widgets = {}
 
-        # 화면 중앙 효과 오버레이
+        # 화면 중앙 효과 오버레이 (안내 문구 및 카운트다운)
         self.fx_overlay = QLabel(self.game_board_frame)
         self.fx_overlay.setAlignment(Qt.AlignCenter)
         self.fx_overlay.setHidden(True)
 
-        # 게임 종료 시 나타날 결과 오버레이 팝업
+        # 게임 종료 시 결과 팝업
         self.result_container = QWidget(self.game_board_frame)
         result_layout = QVBoxLayout(self.result_container)
         result_layout.setAlignment(Qt.AlignCenter)
@@ -203,9 +208,6 @@ class GameView(QWidget):
         root_layout.addWidget(self.game_board_frame, 1)
         self.setLayout(root_layout)
 
-    # ======================================================================
-    # 게임 상태 리셋 및 카운트다운 로직
-    # ======================================================================
     def showEvent(self, event):
         super().showEvent(event)
         self._reset_game_state()
@@ -215,6 +217,8 @@ class GameView(QWidget):
         if hasattr(self, 'game_board_frame') and self.game_board_frame:
             w = self.game_board_frame.width()
             h = self.game_board_frame.height()
+            
+            self.webcam_preview_label.setGeometry(10, 10, w - 20, h - 20)
             self.fx_overlay.setGeometry(0, 0, w, h)
             
             popup_w, popup_h = 380, 300
@@ -235,6 +239,10 @@ class GameView(QWidget):
         self.countdown_val = 3
         self.remaining_words = self.all_words.copy()
         
+        self.ready_frame_count = 0
+        self.is_waiting_for_user = True
+        self.is_counting_down = False
+
         self.score_label.setText("SCORE: 0점")
         self.remain_label.setText(f"남은 단어: {len(self.all_words)} / {len(self.all_words)}")
         self.timer_label.setText("02:00")
@@ -264,11 +272,38 @@ class GameView(QWidget):
             self.board_grid.addWidget(word_chip, row, col)
             self.word_widgets[word] = word_chip
 
-        # 카운트다운 동안 모델을 불러오고 카메라를 켜 둔다
+        # 처음 시작 시 단어판들은 숨기고 웹캠 미리보기 띄우기
+        for w in self.word_widgets.values():
+            w.setHidden(True)
+
         self._start_recognition()
-        self._start_countdown()
+        self._show_waiting_for_user_guide()
+
+    def _show_waiting_for_user_guide(self):
+        """웹캠 화면이 전체로 뜨고, 그 위에 투명하게 대기 안내 문구 띄우기"""
+        self.webcam_preview_label.setHidden(False)
+        self.webcam_preview_label.raise_()
+
+        self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
+        self.fx_overlay.clear() 
+        self.fx_overlay.setText("웹캠 앞에 서서\n어깨와 손을 보여주세요!\n(자세 유지 시 자동 시작)")
+        # 배경을 투명하게(rgba 백그라운드) 주어 아래 웹캠 화면이 비치도록 설정
+        self.fx_overlay.setStyleSheet("""
+            QLabel {
+                font-size: 30px; font-weight: bold; color: #014099;
+                background-color: rgba(255, 255, 255, 0.6); 
+                border-radius: 20px;
+                padding: 25px;
+            }
+        """)
+        self.fx_overlay.setHidden(False)
+        self.fx_overlay.raise_()
 
     def _start_countdown(self):
+        """자세 인식이 끝나면 1, 2, 3 카운트다운 시작"""
+        self.is_waiting_for_user = False
+        self.is_counting_down = True
+        
         self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
         self.fx_overlay.clear() 
         self.fx_overlay.setText(str(self.countdown_val))
@@ -288,13 +323,12 @@ class GameView(QWidget):
             self.fx_overlay.setText(str(self.countdown_val))
             self.fx_overlay.raise_()
         elif self.countdown_val == 0:
-            # "1"이 끝난 직후: 사용자가 아직 차렷 자세일 때 쉬는 높이를 잰다
             if self.recognition_thread is not None:
                 self.recognition_thread.request_calibration()
-            self.fx_overlay.setText("START!")
+            self.fx_overlay.setText("GAME START!")
             self.fx_overlay.setStyleSheet("""
                 QLabel {
-                    font-size: 90px; font-weight: bold; color: #2ECC71;
+                    font-size: 70px; font-weight: bold; color: #2ECC71;
                     background-color: rgba(255, 255, 255, 0.95); border-radius: 20px;
                 }
             """)
@@ -302,38 +336,65 @@ class GameView(QWidget):
         else:
             self.countdown_timer.stop()
             self.fx_overlay.setHidden(True)
+            
+            # 카운트다운과 GAME START가 끝나면 웹캠 숨기고 단어판 켜기!
+            self.webcam_preview_label.setHidden(True)
+            for w in self.word_widgets.values():
+                w.setHidden(False)
+
             self.is_playing = True
             self.game_timer.start(1000)
 
-    # ======================================================================
-    # 정답/오답 판정 및 효과 연출 (🌟 효과음 파일명 적용 부분)
-    # 웹캠 수어 인식 스레드 시작·정지
-    # ======================================================================
     def _start_recognition(self):
-        self._stop_recognition()   # 이전 게임의 스레드가 남아 있으면 먼저 정지
+        self._stop_recognition()   
         self.recognition_thread = RecognitionThread()
         self.recognition_thread.word_recognized.connect(self._on_word_recognized)
         self.recognition_thread.error_occurred.connect(self._on_recognition_error)
+        
+        if hasattr(self.recognition_thread, 'frame_ready'):
+            self.recognition_thread.frame_ready.connect(self._update_webcam_preview)
+            
         self.recognition_thread.start()
+
+    def _update_webcam_preview(self, frame):
+        """스레드에서 넘어온 프레임을 거울 모드로 변환하여 전체 화면에 띄움"""
+        if frame is None:
+            return
+
+        flipped_frame = cv2.flip(frame, 1)
+        rgb_image = cv2.cvtColor(flipped_frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        
+        p = convert_to_qt_format.scaled(
+            self.webcam_preview_label.width(), 
+            self.webcam_preview_label.height(), 
+            Qt.KeepAspectRatio, 
+            Qt.SmoothTransformation
+        )
+        self.webcam_preview_label.setPixmap(QPixmap.fromImage(p))
+
+        # 대기 상태일 때 프레임을 누적하여 자세가 감지되면 카운트다운 진입
+        if self.is_waiting_for_user and not self.is_counting_down:
+            self.ready_frame_count += 1
+            if self.ready_frame_count >= self.required_frames:
+                print("어깨와 손 인식 완료! 카운트다운을 시작합니다.")
+                self._start_countdown()
 
     def _stop_recognition(self):
         if self.recognition_thread is not None:
-            self.recognition_thread.stop()   # 스레드가 끝날 때까지 기다린다 (카메라가 꺼진다)
+            self.recognition_thread.stop()   
             self.recognition_thread = None
 
     def _on_recognition_error(self, message: str):
-        """카메라·모델을 열지 못하면 게임을 할 수 없으므로 프로그램을 종료한다 (임시 처리)."""
         print(f"[수어 인식 오류] {message}", file=sys.stderr)
         QApplication.instance().exit(1)
 
-    # ======================================================================
-    # 정답/오답 판정 및 효과 연출 (캐릭터 이미지 등장 + 효과음)
-    # ======================================================================
     def _on_word_recognized(self, word: str, prob: float):
         if not self.is_playing:
-            return   # 카운트다운 중이거나 게임이 끝난 뒤에 도착한 결과는 무시
+            return   
 
-        # 1) 정답을 맞힌 경우
         if word in self.word_widgets and word in self.remaining_words:
             card_widget = self.word_widgets[word]
             
@@ -358,12 +419,11 @@ class GameView(QWidget):
             QTimer.singleShot(250, make_slot_empty)
             
             self.remaining_words.remove(word)
-            self.score += 100  # 단어당 100점
+            self.score += 100  
             
             self.score_label.setText(f"SCORE: {self.score}점")
             self.remain_label.setText(f"남은 단어: {len(self.remaining_words)} / {len(self.all_words)}")
             
-            # 🌟 [적용] 정답 효과음 파일: correct_sound.wav
             if os.path.exists("correct_sound.wav"):
                 QSound.play("correct_sound.wav")
 
@@ -374,14 +434,9 @@ class GameView(QWidget):
                 self.is_playing = False
                 self._stop_recognition()
                 self._show_game_result("게임 클리어! 🎉", f"모든 단어를 맞혔습니다!\n최종 점수: {self.score}점")
-
-        # 2) 틀렸거나 오답인 경우
         else:
-            # 🌟 [적용] 오답 효과음 파일: failed_sound.wav
             if os.path.exists("failed_sound.wav"):
                 QSound.play("failed_sound.wav")
-
-            # 🌟 오답 캐릭터(seoil_young_retry.png) 등장 연출 호출 (is_correct=False)
             self._show_character_popup(is_correct=False)
 
     def _show_character_popup(self, is_correct: bool):
@@ -404,6 +459,8 @@ class GameView(QWidget):
         self.fx_timer.start(800)
 
     def _hide_fx_overlay(self):
+        if self.is_waiting_for_user:
+            return
         self.fx_overlay.setHidden(True)
 
     def _update_timer(self):
@@ -418,6 +475,7 @@ class GameView(QWidget):
             self._show_game_result("시간 초과! ⏰", f"제한 시간이 종료되었습니다.\n최종 점수: {self.score}점")
 
     def _show_game_result(self, title: str, desc: str):
+        self.webcam_preview_label.setHidden(True)
         self.lbl_result_title.setText(title)
         self.lbl_result_desc.setText(desc)
         self.result_container.setHidden(False)

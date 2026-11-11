@@ -27,6 +27,8 @@ class RecognitionThread(QThread):
 
     word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률)
     error_occurred = pyqtSignal(str)           # 오류 메시지
+    
+    frame_ready = pyqtSignal(np.ndarray) #  프레임을 메인으로 보내는 코드
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,7 +54,6 @@ class RecognitionThread(QThread):
 
     def run(self):
         """스레드 본체: start() 를 부르면 Qt가 새 스레드에서 이 함수를 실행한다."""
-        # MediaPipe 객체는 만든 스레드에서 써야 하므로 여기서 만든다
         try:
             model = predictor.load_model()
             label_names = predictor.load_label_names()
@@ -79,6 +80,9 @@ class RecognitionThread(QThread):
                     if self._running:
                         self.error_occurred.emit("카메라에서 프레임을 받지 못했습니다.")
                     break
+
+                # 🌟 [여기 추가!] 카메라에서 프레임을 정상적으로 읽어오자마자 메인 화면으로 실시간 발사합니다!
+                self.frame_ready.emit(frame)
 
                 # 캘리브레이션 전에도 MediaPipe 에는 계속 넣는다 (VIDEO 모드 추적이 이어지도록)
                 xy, right_missing, left_missing, pose_missing, wrist_xy = mediapipe_extractor.extract_keypoints(
