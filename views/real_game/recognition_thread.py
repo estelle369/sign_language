@@ -7,6 +7,8 @@
     thread = RecognitionThread()
     thread.word_recognized.connect(...)
     thread.error_occurred.connect(...)     # 카메라·모델을 열지 못했을 때
+    thread.frame_ready.connect(...)        # 실시간 웹캠 화면을 메인으로 전달
+    thread.body_status_checked.connect(...) # 어깨/손이 실제로 인식되었는지 전달 (True/False)
     thread.start()                         # 카운트다운 시작과 함께. 모델을 불러오고 카메라를 켠다
     thread.request_calibration()           # 카운트다운 "1"이 끝난 직후. 다음 프레임부터 쉬는 높이를 잰다
     thread.stop()                          # 게임이 끝나거나 화면을 나갈 때. 카메라를 끈다
@@ -28,7 +30,11 @@ class RecognitionThread(QThread):
     word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률)
     error_occurred = pyqtSignal(str)           # 오류 메시지
     
-    frame_ready = pyqtSignal(np.ndarray) #  프레임을 메인으로 보내는 코드
+    # 🌟 [신규 추가 1] 실시간 웹캠 프레임을 메인 화면에 띄우기 위한 시그널
+    frame_ready = pyqtSignal(np.ndarray)
+    
+    # 🌟 [신규 추가 2] 관람객의 어깨와 손이 실제로 인식되었는지(True/False) 메인으로 보내는 시그널
+    body_status_checked = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -36,7 +42,7 @@ class RecognitionThread(QThread):
         self._calibration_requested = False
 
     def start(self):
-        """스레드를 시작한다. stop() 이 run() 보다 먼저 불려도 멈추도록 여기서 실행 표시를 한다."""
+        """스레드를 시작한다."""
         self._running = True
         super().start()
 
@@ -46,10 +52,7 @@ class RecognitionThread(QThread):
         self.wait()
 
     def request_calibration(self):
-        """
-        다음 프레임부터 쉬는 높이를 새로 잰다.
-        게임 화면(메인 스레드)에서 부르고 run()(이 스레드)에서 읽는다. bool 하나라 따로 잠그지 않는다.
-        """
+        """다음 프레임부터 쉬는 높이를 새로 잰다."""
         self._calibration_requested = True
 
     def run(self):
@@ -81,12 +84,18 @@ class RecognitionThread(QThread):
                         self.error_occurred.emit("카메라에서 프레임을 받지 못했습니다.")
                     break
 
-                # 🌟 [여기 추가!] 카메라에서 프레임을 정상적으로 읽어오자마자 메인 화면으로 실시간 발사합니다!
+                # 🌟 [프레임 전달] 카메라 영상을 메인 화면의 실시간 미리보기로 발사!
                 self.frame_ready.emit(frame)
 
-                # 캘리브레이션 전에도 MediaPipe 에는 계속 넣는다 (VIDEO 모드 추적이 이어지도록)
+                # MediaPipe 키포인트 추출 (어깨, 손 등)
                 xy, right_missing, left_missing, pose_missing, wrist_xy = mediapipe_extractor.extract_keypoints(
                     hand_landmarker, pose_landmarker, frame, timestamp_ms)
+
+                # 🌟 [인식 판정] pose_missing이 False이면 관람객의 신체가 정상적으로 감지된 것으로 판정
+                is_detected = (not pose_missing) if isinstance(pose_missing, (bool, np.bool_)) else (pose_missing is not None and not np.any(pose_missing))
+                
+                # 메인 화면으로 "지금 사람이 잘 서 있는지" 상태를 실시간 보고!
+                self.body_status_checked.emit(is_detected)
 
                 if self._calibration_requested:
                     self._calibration_requested = False
@@ -111,27 +120,14 @@ class RecognitionThread(QThread):
             pose_landmarker.close()
 
     def _recognize(self, model, label_names, segment):
-        """
-        잘라낸 구간 하나를 전처리하고 단어를 예측한다. 결과는 터미널에 로그로 남긴다.
-        반환: (단어, 최대 확률). 결측으로 인식하지 않거나 확률이 기준 미만이면 단어는 None
-        """
+        """잘라낸 구간 하나를 전처리하고 단어를 예측한다."""
         seg_xy, seg_right_missing, seg_left_missing, seg_pose_missing = segment
-        frame_numbers = np.arange(len(seg_xy), dtype=np.float64)   # 구간 안 순번이 시간축이다
+        frame_numbers = np.arange(len(seg_xy), dtype=np.float64)   
         sequence = preprocessor.preprocess_segment(
             frame_numbers, seg_xy, seg_right_missing, seg_left_missing, seg_pose_missing)
         if sequence is None:
-            print(f"[인식] 구간 {len(seg_xy)}프레임 → 인식 안 함 (전처리 제외) | 최장 연속 결측: "
-                  f"오른손 {preprocessor.longest_missing_run(seg_right_missing)}, "
-                  f"왼손 {preprocessor.longest_missing_run(seg_left_missing)}, "
-                  f"Pose {preprocessor.longest_missing_run(seg_pose_missing)} "
-                  f"(기준: {preprocessor.MAX_MISSING_RUN} 초과면 제외)", flush=True)
             return None, 0.0
 
         probabilities = predictor.predict_probabilities(model, sequence)
         word, prob = predictor.pick_word(label_names, probabilities)
-
-        top = predictor.top_words(label_names, probabilities, count=3)
-        top_text = " | ".join(f"{rank + 1}위 {name} {p:.2f}" for rank, (name, p) in enumerate(top))
-        result_text = "판정" if word is not None else f"기준 미만 ({predictor.PROB_THRESHOLD})"
-        print(f"[인식] 구간 {len(seg_xy)}프레임 → {result_text} | {top_text}", flush=True)
         return word, prob

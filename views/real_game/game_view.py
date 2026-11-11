@@ -367,8 +367,13 @@ class GameView(QWidget):
         self.recognition_thread.word_recognized.connect(self._on_word_recognized)
         self.recognition_thread.error_occurred.connect(self._on_recognition_error)
         
+        # 1. 웹캠 프레임 화면 띄우기 연결
         if hasattr(self.recognition_thread, 'frame_ready'):
             self.recognition_thread.frame_ready.connect(self._update_webcam_preview)
+            
+        # 2. 🌟 진짜 어깨·손 인식 여부(True/False) 판정 연결!
+        if hasattr(self.recognition_thread, 'body_status_checked'):
+            self.recognition_thread.body_status_checked.connect(self._on_body_status_received)
             
         self.recognition_thread.start()
 
@@ -391,13 +396,46 @@ class GameView(QWidget):
         )
         self.webcam_preview_label.setPixmap(QPixmap.fromImage(p))
 
-        # 대기 상태일 때 프레임을 누적하여 자세가 감지되면 카운트다운 진입
+        # 대기 상태일 때 프레임 누적 체크
         if self.is_waiting_for_user and not self.is_counting_down:
             self.ready_frame_count += 1
+            
+            # 🌟 관람객이 자세를 잡고 목표 프레임에 도달한 순간!
             if self.ready_frame_count >= self.required_frames:
-                print("어깨와 손 인식 완료! 카운트다운을 시작합니다.")
-                self._start_countdown()
+                self.is_counting_down = True  # 중복 인식 방지 잠금
+                
+                # 1단계: 카메라 화면은 그대로 둔 채, 안내 문구를 "인식 완료!"로 변경
+                self.fx_overlay.setText("✨ 인식 완료! ✨")
+                self.fx_overlay.setStyleSheet("""
+                    QLabel {
+                        font-size: 50px; 
+                        font-weight: bold; 
+                        color: #2ECC71;
+                        background-color: rgba(255, 255, 255, 0.85); 
+                        border-radius: 20px;
+                        padding: 20px;
+                    }
+                """)
+                self.fx_overlay.setHidden(False)
+                self.fx_overlay.raise_()
+                
+                # 2단계: 1초(1000ms) 동안 "인식 완료!"를 보여준 뒤, 진짜 3, 2, 1 카운트다운으로 점프!
+                QTimer.singleShot(1000, self._start_real_countdown)
 
+    def _start_real_countdown(self):
+        """인식 완료 후, 카메라가 켜진 상태에서 3, 2, 1 카운트다운을 시작하는 함수"""
+        self.countdown_val = 3
+        self.fx_overlay.setText(str(self.countdown_val))
+        self.fx_overlay.setStyleSheet("""
+            QLabel {
+                font-size: 140px; 
+                font-weight: bold; 
+                color: #FF6B81;
+                background-color: rgba(255, 255, 255, 0.90); 
+                border-radius: 20px;
+            }
+        """)
+        self.countdown_timer.start(1000) # 1초마다 _run_countdown 호출
     def _stop_recognition(self):
         if self.recognition_thread is not None:
             self.recognition_thread.stop()   
@@ -514,3 +552,40 @@ class GameView(QWidget):
         self.fx_timer.stop()
         self.is_playing = False
         self._stop_recognition()
+        
+    def _on_body_status_received(self, is_detected: bool):
+        """
+        스레드가 보내준 진짜 어깨·손 인식 결과(True/False)를 받아 처리하는 함수입니다.
+        관람객이 카메라 앞에서 바른 자세를 잡고 있을 때만 카운트가 올라갑니다.
+        """
+        if not self.is_waiting_for_user or self.is_counting_down:
+            return  # 이미 카운트다운 중이거나 게임 중이면 무시
+
+        if is_detected:
+            # 🌟 관람객이 어깨와 손을 올리고 있을 때만 프레임 카운트 증가!
+            self.ready_frame_count += 1
+            
+            if self.ready_frame_count >= self.required_frames:
+                self.is_counting_down = True  # 중복 트리거 방지 잠금
+                
+                # "인식 완료!" 연출 팝업 띄우기
+                self.fx_overlay.setText("✨ 인식 완료! ✨")
+                self.fx_overlay.setStyleSheet("""
+                    QLabel {
+                        font-size: 50px; 
+                        font-weight: bold; 
+                        color: #2ECC71;
+                        background-color: rgba(255, 255, 255, 0.85); 
+                        border-radius: 20px;
+                        padding: 20px;
+                    }
+                """)
+                self.fx_overlay.setHidden(False)
+                self.fx_overlay.raise_()
+                
+                # 1초 뒤에 진짜 카운트다운(3, 2, 1) 시작 함수로 점프!
+                QTimer.singleShot(1000, self._start_real_countdown)
+        else:
+            # 💡 관람객이 자리를 비우거나 자세가 틀어지면 카운트를 다시 0으로 초기화 (안전장치)
+            if self.ready_frame_count > 0:
+                self.ready_frame_count = 0
