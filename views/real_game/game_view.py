@@ -218,8 +218,15 @@ class GameView(QWidget):
             w = self.game_board_frame.width()
             h = self.game_board_frame.height()
             
+            # 웹캠 미리보기 창은 게임판 전체를 채우기
             self.webcam_preview_label.setGeometry(10, 10, w - 20, h - 20)
-            self.fx_overlay.setGeometry(0, 0, w, h)
+            
+            # 만약 대기 안내 팝업이 떠 있는 상태라면 크기 유지 (또는 중앙 정렬)
+            if self.is_waiting_for_user:
+                card_w, card_h = 520, 260
+                self.fx_overlay.setGeometry((w - card_w) // 2, (h - card_h) // 2, card_w, card_h)
+            else:
+                self.fx_overlay.setGeometry(0, 0, w, h)
             
             popup_w, popup_h = 380, 300
             self.result_container.setGeometry(
@@ -280,24 +287,33 @@ class GameView(QWidget):
         self._show_waiting_for_user_guide()
 
     def _show_waiting_for_user_guide(self):
-        """웹캠 화면이 전체로 뜨고, 그 위에 투명하게 대기 안내 문구 띄우기"""
+        """웹캠 화면은 전체로 뜨고, 중앙에 깔끔한 안내 카드 띄우기"""
         self.webcam_preview_label.setHidden(False)
         self.webcam_preview_label.raise_()
 
-        self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
+        # fx_overlay를 화면 중앙에 예쁜 카드 형태로 배치하기 위해 크기 지정
+        w = self.game_board_frame.width()
+        h = self.game_board_frame.height()
+        card_w, card_h = 520, 260
+        self.fx_overlay.setGeometry((w - card_w) // 2, (h - card_h) // 2, card_w, card_h)
+        
         self.fx_overlay.clear() 
-        self.fx_overlay.setText("웹캠 앞에 서서\n어깨와 손을 보여주세요!\n(자세 유지 시 자동 시작)")
-        # 배경을 투명하게(rgba 백그라운드) 주어 아래 웹캠 화면이 비치도록 설정
+        self.fx_overlay.setText("웹캠 앞에 서서\n어깨와 손을 보여주세요!\n\n(자세 유지 시 자동 시작)")
+        
+        # 깔끔하고 세련된 흰색 카드 스타일 (테두리와 둥근 모서리 적용)
         self.fx_overlay.setStyleSheet("""
             QLabel {
-                font-size: 30px; font-weight: bold; color: #014099;
-                background-color: rgba(255, 255, 255, 0.6); 
+                font-size: 24px; 
+                font-weight: bold; 
+                color: #014099;
+                background-color: rgb(255, 255, 255); 
                 border-radius: 20px;
-                padding: 25px;
+                border: 3px solid #014099;
+                padding: 20px;
             }
         """)
         self.fx_overlay.setHidden(False)
-        self.fx_overlay.raise_()
+        self.fx_overlay.raise_() # 웹캠보다 위에 오도록 맨 위로 올리기
 
     def _start_countdown(self):
         """자세 인식이 끝나면 1, 2, 3 카운트다운 시작"""
