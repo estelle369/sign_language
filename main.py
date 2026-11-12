@@ -1,6 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QStackedWidget, QScrollArea, QVBoxLayout, QWidget
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QKeySequence
 
 from views.main_view import MainView
 from views.practice_game.practice_view import PracticeView
@@ -61,6 +62,29 @@ class MainController(QWidget):
         
         # 처음 실행 시 메인 화면(Index 0) 세팅
         self.stacked_widget.setCurrentIndex(0)
+        
+        # 🌟 전체 화면 상태 추적
+        self.is_fullscreen = False
+
+    def keyPressEvent(self, event):
+        """ESC 키 또는 F11 키로 전체 화면 토글"""
+        if event.key() == Qt.Key_Escape:
+            self.toggle_fullscreen()
+        elif event.key() == Qt.Key_F11:
+            self.toggle_fullscreen()
+        else:
+            super().keyPressEvent(event)
+
+    def toggle_fullscreen(self):
+        """전체 화면 토글 (전체 화면 ↔ 보통 화면)"""
+        if self.is_fullscreen:
+            # 전체 화면 해제
+            self.showNormal()
+            self.is_fullscreen = False
+        else:
+            # 전체 화면 활성화
+            self.showFullScreen()
+            self.is_fullscreen = True
 
     def go_to_practice(self):
         """연습 모드 화면(Index 1)으로 전환"""

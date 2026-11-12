@@ -272,9 +272,9 @@ class GameView(QWidget):
             word_chip.setAlignment(Qt.AlignCenter)
             word_chip.setStyleSheet("""
                 QLabel {
-                    font-size: 18px; font-weight: bold; color: #334155;
+                    font-size: 26px; font-weight: bold; color: #334155;
                     background-color: rgba(255, 255, 255, 0.95);
-                    padding: 15px; border-radius: 16px; border: 1.5px solid #CBD5E1;
+                    padding: 20px; border-radius: 16px; border: 1.5px solid #CBD5E1;
                 }
             """)
             self.board_grid.addWidget(word_chip, row, col)
