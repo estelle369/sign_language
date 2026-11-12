@@ -12,7 +12,7 @@ class MainController(QWidget):
     """
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("손끝으로 전하는 마음 - 수어 학습 키오스크")
+        self.setWindowTitle("손끝으로 전하는 마음 - 수어 학습 게임")
         
         # 노트북 화면(가로)에서 세로형 UI를 테스트하기 좋은 창 크기 설정 (폭 700, 높이 950)
         self.resize(700, 950)

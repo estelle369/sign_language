@@ -2,6 +2,7 @@ import os
 import random
 import sys
 import cv2
+import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout)
@@ -361,6 +362,85 @@ class GameView(QWidget):
             self.is_playing = True
             self.game_timer.start(1000)
 
+    def _draw_landmarks(self, frame, xy):
+        """
+        프레임에 MediaPipe 랜드마크를 그린다.
+        
+        xy: (46, 2) 키포인트 배열
+            0~20: 오른손 (21점)
+            21~41: 왼손 (21점)
+            42: 오른팔꿈치
+            43: 왼팔꿈치
+            44: 오른어깨
+            45: 왼어깨
+        """
+        frame_draw = frame.copy()
+        
+        # 어깨와 팔꿈치 그리기 (반드시 표시)
+        # 42: 오른팔꿈치, 43: 왼팔꿈치, 44: 오른어깨, 45: 왼어깨
+        SHOULDER_INDICES = [44, 45]      # 어깨
+        ELBOW_INDICES = [42, 43]          # 팔꿈치
+        SHOULDER_ELBOW_PAIRS = [(44, 42), (45, 43)]  # (어깨-팔꿈치) 연결선
+        
+        # 손 랜드마크 (손가락 관절)
+        RIGHT_HAND_INDICES = list(range(0, 21))
+        LEFT_HAND_INDICES = list(range(21, 42))
+        
+        # 손가락 연결 구조 (MediaPipe Hand 기준)
+        HAND_CONNECTIONS = [
+            (0, 1), (1, 2), (2, 3), (3, 4),      # 엄지
+            (0, 5), (5, 6), (6, 7), (7, 8),      # 검지
+            (0, 9), (9, 10), (10, 11), (11, 12), # 중지
+            (0, 13), (13, 14), (14, 15), (15, 16), # 약지
+            (0, 17), (17, 18), (18, 19), (19, 20), # 새끼
+        ]
+        
+        # 1. 어깨-팔꿈치 연결선 그리기
+        for shoulder_idx, elbow_idx in SHOULDER_ELBOW_PAIRS:
+            shoulder_pos = xy[shoulder_idx].astype(int)
+            elbow_pos = xy[elbow_idx].astype(int)
+            
+            if np.all(shoulder_pos != [0, 0]) and np.all(elbow_pos != [0, 0]):
+                cv2.line(frame_draw, tuple(shoulder_pos), tuple(elbow_pos), (0, 255, 0), 2)
+        
+        # 2. 어깨 원 그리기 (연두색)
+        for idx in SHOULDER_INDICES:
+            pos = xy[idx].astype(int)
+            if np.all(pos != [0, 0]):
+                cv2.circle(frame_draw, tuple(pos), 6, (0, 255, 0), -1)
+                cv2.circle(frame_draw, tuple(pos), 6, (0, 200, 0), 2)
+        
+        # 3. 팔꿈치 원 그리기 (노란색)
+        for idx in ELBOW_INDICES:
+            pos = xy[idx].astype(int)
+            if np.all(pos != [0, 0]):
+                cv2.circle(frame_draw, tuple(pos), 5, (0, 255, 255), -1)
+                cv2.circle(frame_draw, tuple(pos), 5, (0, 200, 200), 2)
+        
+        # 4. 오른손 그리기 (파란색)
+        self._draw_hand_landmarks(frame_draw, xy, RIGHT_HAND_INDICES, HAND_CONNECTIONS, (255, 0, 0))
+        
+        # 5. 왼손 그리기 (빨간색)
+        self._draw_hand_landmarks(frame_draw, xy, LEFT_HAND_INDICES, HAND_CONNECTIONS, (0, 0, 255))
+        
+        return frame_draw
+    
+    def _draw_hand_landmarks(self, frame, xy, hand_indices, connections, color):
+        """손가락 관절을 연결선과 함께 그린다."""
+        # 연결선 그리기
+        for start_idx, end_idx in connections:
+            start_pos = xy[hand_indices[start_idx]].astype(int)
+            end_pos = xy[hand_indices[end_idx]].astype(int)
+            
+            if np.all(start_pos != [0, 0]) and np.all(end_pos != [0, 0]):
+                cv2.line(frame, tuple(start_pos), tuple(end_pos), color, 1)
+        
+        # 관절점 원 그리기
+        for idx in hand_indices:
+            pos = xy[idx].astype(int)
+            if np.all(pos != [0, 0]):
+                cv2.circle(frame, tuple(pos), 3, color, -1)
+
     def _start_recognition(self):
         self._stop_recognition()   
         self.recognition_thread = RecognitionThread()
@@ -370,8 +450,12 @@ class GameView(QWidget):
         # 1. 웹캠 프레임 화면 띄우기 연결
         if hasattr(self.recognition_thread, 'frame_ready'):
             self.recognition_thread.frame_ready.connect(self._update_webcam_preview)
+        
+        # 2. 🌟 랜드마크(어깨, 손관절) 정보와 프레임을 함께 받기
+        if hasattr(self.recognition_thread, 'landmarks_ready'):
+            self.recognition_thread.landmarks_ready.connect(self._update_webcam_with_landmarks)
             
-        # 2. 🌟 진짜 어깨·손 인식 여부(True/False) 판정 연결!
+        # 3. 🌟 진짜 어깨·손 인식 여부(True/False) 판정 연결!
         if hasattr(self.recognition_thread, 'body_status_checked'):
             self.recognition_thread.body_status_checked.connect(self._on_body_status_received)
             
@@ -421,6 +505,32 @@ class GameView(QWidget):
                 
                 # 2단계: 1초(1000ms) 동안 "인식 완료!"를 보여준 뒤, 진짜 3, 2, 1 카운트다운으로 점프!
                 QTimer.singleShot(1000, self._start_real_countdown)
+
+    def _update_webcam_with_landmarks(self, frame, xy):
+        """
+        스레드에서 프레임과 랜드마크를 함께 받아서
+        어깨와 손관절을 그려서 표시한다.
+        """
+        if frame is None or xy is None:
+            return
+        
+        # 랜드마크를 그린 프레임 생성
+        frame_with_landmarks = self._draw_landmarks(frame, xy)
+        
+        # 거울 모드(좌우반전) 적용
+        flipped_frame = cv2.flip(frame_with_landmarks, 1)
+        rgb_image = cv2.cvtColor(flipped_frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        convert_to_qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        
+        p = convert_to_qt_format.scaled(
+            self.webcam_preview_label.width(), 
+            self.webcam_preview_label.height(), 
+            Qt.KeepAspectRatio, 
+            Qt.SmoothTransformation
+        )
+        self.webcam_preview_label.setPixmap(QPixmap.fromImage(p))
 
     def _start_real_countdown(self):
         """인식 완료 후, 카메라가 켜진 상태에서 3, 2, 1 카운트다운을 시작하는 함수"""

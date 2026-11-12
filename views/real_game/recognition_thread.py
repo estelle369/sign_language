@@ -35,6 +35,9 @@ class RecognitionThread(QThread):
     
     # 🌟 [신규 추가 2] 관람객의 어깨와 손이 실제로 인식되었는지(True/False) 메인으로 보내는 시그널
     body_status_checked = pyqtSignal(bool)
+    
+    # 🌟 [신규 추가 3] 프레임과 함께 랜드마크(키포인트) 정보도 함께 전달
+    landmarks_ready = pyqtSignal(np.ndarray, np.ndarray)  # (frame, xy)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -90,6 +93,9 @@ class RecognitionThread(QThread):
                 # MediaPipe 키포인트 추출 (어깨, 손 등)
                 xy, right_missing, left_missing, pose_missing, wrist_xy = mediapipe_extractor.extract_keypoints(
                     hand_landmarker, pose_landmarker, frame, timestamp_ms)
+
+                # 🌟 [신규] 프레임과 랜드마크를 함께 전달!
+                self.landmarks_ready.emit(frame, xy)
 
                 # 🌟 [인식 판정] pose_missing이 False이면 관람객의 신체가 정상적으로 감지된 것으로 판정
                 is_detected = (not pose_missing) if isinstance(pose_missing, (bool, np.bool_)) else (pose_missing is not None and not np.any(pose_missing))
