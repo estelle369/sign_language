@@ -290,6 +290,7 @@ class GameView(QWidget):
     def _show_waiting_for_user_guide(self):
         """웹캠 화면은 전체로 뜨고, 중앙에 깔끔한 안내 카드 띄우기"""
         self.webcam_preview_label.setHidden(False)
+        self.webcam_preview_label.clear()  # 로딩 메시지 지우기
         self.webcam_preview_label.raise_()
 
         # fx_overlay를 화면 중앙에 예쁜 카드 형태로 배치하기 위해 크기 지정
@@ -301,15 +302,15 @@ class GameView(QWidget):
         self.fx_overlay.clear() 
         self.fx_overlay.setText("웹캠 앞에 서서\n어깨와 손을 보여주세요!\n\n(자세 유지 시 자동 시작)")
         
-        # 깔끔하고 세련된 흰색 카드 스타일 (테두리와 둥근 모서리 적용)
+        # 투명한 카드 스타일 (배경 투명도 30%)
         self.fx_overlay.setStyleSheet("""
             QLabel {
                 font-size: 24px; 
                 font-weight: bold; 
                 color: #014099;
-                background-color: rgb(255, 255, 255); 
+                background-color: rgba(255, 255, 255, 0.3);
                 border-radius: 20px;
-                border: 3px solid #014099;
+                border: 3px solid rgba(1, 64, 153, 0.5);
                 padding: 20px;
             }
         """)
@@ -346,7 +347,7 @@ class GameView(QWidget):
             self.fx_overlay.setStyleSheet("""
                 QLabel {
                     font-size: 70px; font-weight: bold; color: #2ECC71;
-                    background-color: rgba(255, 255, 255, 0.95); border-radius: 20px;
+                    background-color: rgba(255, 255, 255, 0.3); border-radius: 20px;
                 }
             """)
             self.fx_overlay.raise_()
@@ -541,7 +542,7 @@ class GameView(QWidget):
                 font-size: 140px; 
                 font-weight: bold; 
                 color: #FF6B81;
-                background-color: rgba(255, 255, 255, 0.90); 
+                background-color: rgba(255, 255, 255, 0.3); 
                 border-radius: 20px;
             }
         """)
@@ -685,7 +686,7 @@ class GameView(QWidget):
                         font-size: 50px; 
                         font-weight: bold; 
                         color: #2ECC71;
-                        background-color: rgba(255, 255, 255, 0.85); 
+                        background-color: rgba(255, 255, 255, 0.3); 
                         border-radius: 20px;
                         padding: 20px;
                     }
