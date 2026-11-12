@@ -264,6 +264,7 @@ class GameView(QWidget):
         shuffled = self.all_words.copy()
         random.shuffle(shuffled)
 
+        #단어 카드 글씨 크기 조절
         for idx, word in enumerate(shuffled):
             row = idx // 4
             col = idx % 4
@@ -272,7 +273,7 @@ class GameView(QWidget):
             word_chip.setAlignment(Qt.AlignCenter)
             word_chip.setStyleSheet("""
                 QLabel {
-                    font-size: 26px; font-weight: bold; color: #334155;
+                    font-size: 35px; font-weight: bold; color: #334155;
                     background-color: rgba(255, 255, 255, 0.95);
                     padding: 20px; border-radius: 16px; border: 1.5px solid #CBD5E1;
                 }
