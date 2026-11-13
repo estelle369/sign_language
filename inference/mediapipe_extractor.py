@@ -32,7 +32,7 @@ LEFT_HAND_START = 21
 HAND_POINT_COUNT = 21
 POSE_SLOT_START = 42
 
-# MediaPipe 손 라벨 → 손 슬롯 시작 번호 (비반전 입력 기준)
+# MediaPipe 손 라벨 → 손 슬롯 시작 번호 (비반전 입력 기준). Pose가 검출되지 않은 프레임에서만 쓴다
 HAND_LABEL_TO_SLOT = {
     "Left": LEFT_HAND_START,   # 사용자의 왼손
     "Right": RIGHT_HAND_START,   # 사용자의 오른손
@@ -107,26 +107,7 @@ def extract_keypoints(hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms)
 
     xy = np.zeros((NUM_ALL_POINTS, 2), dtype=np.float64)
 
-    # 손: 같은 라벨이 두 번 나오면 손 라벨 점수(handedness score)가 높은 쪽을 쓴다
-    best_score = {"Left": -1.0, "Right": -1.0}
-    for i in range(len(hand_result.hand_landmarks)):
-        label = hand_result.handedness[i][0].category_name   # "Left" 또는 "Right"
-        score = hand_result.handedness[i][0].score
-        if score <= best_score[label]:
-            continue
-        best_score[label] = score
-
-        slot_start = HAND_LABEL_TO_SLOT[label]
-        landmarks = hand_result.hand_landmarks[i]
-        for p in range(HAND_POINT_COUNT):
-            # 0 ~ 1 좌표에 화면 폭·높이를 곱해 픽셀로 되돌린다 (화면비 왜곡 방지)
-            xy[slot_start + p, 0] = landmarks[p].x * width
-            xy[slot_start + p, 1] = landmarks[p].y * height
-
-    right_missing = best_score["Right"] < 0    # "Right" 라벨 = 오른손
-    left_missing = best_score["Left"] < 0      # "Left" 라벨 = 왼손
-
-    # Pose: 사람이 검출되면 33점이 모두 나온다
+    # Pose: 사람이 검출되면 33점이 모두 나온다. 손 슬롯을 정할 때 손목 좌표가 필요하므로 먼저 처리한다
     pose_missing = len(pose_result.pose_landmarks) == 0
     wrist_xy = np.zeros((2, 2), dtype=np.float64)
     if not pose_missing:
@@ -142,4 +123,85 @@ def extract_keypoints(hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms)
             wrist_xy[k, 0] = landmark.x * width
             wrist_xy[k, 1] = landmark.y * height
 
+    # 손: 검출된 손마다 21점을 픽셀 좌표로 바꾼다
+    # 0 ~ 1 좌표에 화면 폭·높이를 곱해 픽셀로 되돌린다 (화면비 왜곡 방지)
+    hands = []
+    for i in range(len(hand_result.hand_landmarks)):
+        landmarks = hand_result.hand_landmarks[i]
+        points = np.zeros((HAND_POINT_COUNT, 2), dtype=np.float64)
+        for p in range(HAND_POINT_COUNT):
+            points[p, 0] = landmarks[p].x * width
+            points[p, 1] = landmarks[p].y * height
+        hands.append(points)
+
+    if pose_missing:
+        slot_starts = _slots_by_label(hand_result)
+    else:
+        slot_starts = _slots_by_pose_wrist(hands, wrist_xy)
+
+    right_missing = True
+    left_missing = True
+    for i in range(len(hands)):
+        slot_start = slot_starts[i]
+        if slot_start is None:
+            continue
+        xy[slot_start:slot_start + HAND_POINT_COUNT] = hands[i]
+        if slot_start == RIGHT_HAND_START:
+            right_missing = False
+        else:
+            left_missing = False
+
     return xy, right_missing, left_missing, pose_missing, wrist_xy
+
+
+def _slots_by_pose_wrist(hands, wrist_xy):
+    """
+    검출된 손의 0번(손목)이 Pose 오른손목(16)과 왼손목(15) 중 어디에 가까운지로 손 슬롯을 정한다.
+    HandLandmarker의 "Left"/"Right" 라벨은 프레임마다 바뀌거나 두 손에 같은 라벨이 붙는 경우가 있어 쓰지 않는다.
+
+    hands    : 손마다 (21, 2) 픽셀 좌표 리스트 (최대 2개)
+    wrist_xy : (2, 2) Pose 손목 픽셀 좌표 [오른손목, 왼손목]
+    반환     : 손마다 슬롯 시작 번호 리스트 (RIGHT_HAND_START 또는 LEFT_HAND_START)
+    """
+    right_wrist = wrist_xy[0]
+    left_wrist = wrist_xy[1]
+
+    if len(hands) == 1:
+        to_right = np.linalg.norm(hands[0][0] - right_wrist)
+        to_left = np.linalg.norm(hands[0][0] - left_wrist)
+        return [RIGHT_HAND_START] if to_right <= to_left else [LEFT_HAND_START]
+
+    if len(hands) == 2:
+        # 두 손이 같은 슬롯에 들어가지 않도록, 두 가지 배정 중 손목 거리 합이 작은 쪽을 고른다
+        #   배정 A: 손 0 → 오른손, 손 1 → 왼손
+        #   배정 B: 손 0 → 왼손,   손 1 → 오른손
+        cost_a = np.linalg.norm(hands[0][0] - right_wrist) + np.linalg.norm(hands[1][0] - left_wrist)
+        cost_b = np.linalg.norm(hands[0][0] - left_wrist) + np.linalg.norm(hands[1][0] - right_wrist)
+        if cost_a <= cost_b:
+            return [RIGHT_HAND_START, LEFT_HAND_START]
+        return [LEFT_HAND_START, RIGHT_HAND_START]
+
+    return []
+
+
+def _slots_by_label(hand_result):
+    """
+    Pose가 검출되지 않아 손목 좌표가 없을 때만 쓴다. HandLandmarker 라벨로 손 슬롯을 정한다.
+    같은 라벨이 두 번 나오면 라벨 점수(handedness score)가 높은 쪽만 쓰고, 나머지는 None(버림)이다.
+
+    반환: 손마다 슬롯 시작 번호 또는 None 리스트
+    """
+    slot_starts = [None] * len(hand_result.handedness)
+    best_index = {"Left": -1, "Right": -1}
+    best_score = {"Left": -1.0, "Right": -1.0}
+    for i in range(len(hand_result.handedness)):
+        label = hand_result.handedness[i][0].category_name   # "Left" 또는 "Right"
+        score = hand_result.handedness[i][0].score
+        if score > best_score[label]:
+            best_score[label] = score
+            best_index[label] = i
+
+    for label in ["Left", "Right"]:
+        if best_index[label] >= 0:
+            slot_starts[best_index[label]] = HAND_LABEL_TO_SLOT[label]
+    return slot_starts
