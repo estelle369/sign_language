@@ -5,8 +5,9 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QPainter, QPixmap
-from PyQt5.QtMultimedia import QSound  
+from PyQt5.QtGui import QPainter, QPixmap, QImage
+from PyQt5.QtMultimedia import QSound
+import cv2
 
 from views.real_game.recognition_thread import RecognitionThread
 
@@ -200,7 +201,18 @@ class GameView(QWidget):
         """)
         self.result_container.setHidden(True)
 
-        root_layout.addWidget(self.game_board_frame, 1)
+        # 웹캠 화면 (MediaPipe 관절 표시, 테스트용). 게임판 오른쪽에 둔다
+        self.camera_label = QLabel("카메라 준비 중...")
+        self.camera_label.setAlignment(Qt.AlignCenter)
+        self.camera_label.setMinimumSize(480, 360)
+        self.camera_label.setStyleSheet("background-color: black; color: white; border-radius: 20px;")
+
+        board_camera_layout = QHBoxLayout()
+        board_camera_layout.setSpacing(15)
+        board_camera_layout.addWidget(self.game_board_frame, 1)
+        board_camera_layout.addWidget(self.camera_label, 1)
+
+        root_layout.addLayout(board_camera_layout, 1)
         self.setLayout(root_layout)
 
     # ======================================================================
@@ -314,7 +326,17 @@ class GameView(QWidget):
         self.recognition_thread = RecognitionThread()
         self.recognition_thread.word_recognized.connect(self._on_word_recognized)
         self.recognition_thread.error_occurred.connect(self._on_recognition_error)
+        self.recognition_thread.frame_ready.connect(self._on_frame_ready)
         self.recognition_thread.start()
+
+    def _on_frame_ready(self, image_bgr):
+        """인식 스레드가 보낸 웹캠 화면(관절을 그린 BGR 배열)을 카메라 라벨에 비율을 유지해 띄운다."""
+        rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        height, width = rgb.shape[:2]
+        qimage = QImage(rgb.data, width, height, width * 3, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimage).scaled(
+            self.camera_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.camera_label.setPixmap(pixmap)
 
     def _stop_recognition(self):
         if self.recognition_thread is not None:

@@ -12,6 +12,7 @@
     thread.stop()                          # 게임이 끝나거나 화면을 나갈 때. 카메라를 끈다
 """
 
+import cv2
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -22,11 +23,26 @@ from inference.trigger import SegmentTrigger
 CAMERA_INDEX = 0
 CAMERA_READ_TIMEOUT_SECONDS = 3.0   # 카메라를 켠 직후 첫 프레임이 늦게 올 수 있어 넉넉하게 둔다
 
+# 화면에 관절을 그릴 때 쓰는 값 (테스트용 표시)
+# 손 21점 연결선 (MediaPipe 손 번호 기준: 0 손목, 1~4 엄지, 5~8 검지, 9~12 중지, 13~16 약지, 17~20 새끼)
+HAND_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 4),
+    (0, 5), (5, 6), (6, 7), (7, 8),
+    (5, 9), (9, 10), (10, 11), (11, 12),
+    (9, 13), (13, 14), (14, 15), (15, 16),
+    (13, 17), (0, 17), (17, 18), (18, 19), (19, 20),
+]
+RIGHT_HAND_COLOR = (0, 165, 255)   # BGR 주황: 오른손 슬롯(0~20)
+LEFT_HAND_COLOR = (255, 200, 0)    # BGR 하늘색: 왼손 슬롯(21~41)
+POSE_COLOR = (200, 200, 200)       # 회색: 어깨·팔꿈치 (Pose)
+WRIST_COLOR = (0, 0, 255)          # 빨강: Pose 손목 (트리거용)
+
 
 class RecognitionThread(QThread):
 
     word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률)
     error_occurred = pyqtSignal(str)           # 오류 메시지
+    frame_ready = pyqtSignal(np.ndarray)       # 관절을 그린 웹캠 화면 (BGR, 좌우 반전)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -72,6 +88,15 @@ class RecognitionThread(QThread):
 
         trigger = None      # 캘리브레이션 요청이 오면 만든다
         last_id = -1
+
+        # fps 측정 (약 1초마다 갱신. 시각은 카메라가 프레임을 받은 시각 timestamp_ms 를 쓴다)
+        #   카메라 fps : 웹캠이 실제로 보내는 프레임 수 (frame_id 증가량)
+        #   처리 fps   : MediaPipe 까지 처리한 프레임 수. 처리가 느리면 카메라 fps 보다 낮고, 그만큼 프레임을 건너뛴다
+        fps_start_ms = -1
+        fps_start_id = 0
+        processed_count = 0
+        camera_fps = 0.0
+        processed_fps = 0.0
         try:
             while self._running:
                 frame, last_id, timestamp_ms = camera.read(last_id, CAMERA_READ_TIMEOUT_SECONDS)
@@ -83,6 +108,24 @@ class RecognitionThread(QThread):
                 # 캘리브레이션 전에도 MediaPipe 에는 계속 넣는다 (VIDEO 모드 추적이 이어지도록)
                 xy, right_missing, left_missing, pose_missing, wrist_xy = mediapipe_extractor.extract_keypoints(
                     hand_landmarker, pose_landmarker, frame, timestamp_ms)
+
+                if fps_start_ms < 0:
+                    fps_start_ms = timestamp_ms
+                    fps_start_id = last_id
+                processed_count += 1
+                elapsed_ms = timestamp_ms - fps_start_ms
+                if elapsed_ms >= 1000:
+                    camera_fps = (last_id - fps_start_id) * 1000.0 / elapsed_ms
+                    processed_fps = processed_count * 1000.0 / elapsed_ms
+                    fps_start_ms = timestamp_ms
+                    fps_start_id = last_id
+                    processed_count = 0
+
+                image = draw_keypoints(frame, xy, right_missing, left_missing, pose_missing, wrist_xy)
+                fps_text = f"camera {camera_fps:.1f} fps / processed {processed_fps:.1f} fps"
+                cv2.putText(image, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4)   # 검은 테두리
+                cv2.putText(image, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+                self.frame_ready.emit(image)
 
                 if self._calibration_requested:
                     self._calibration_requested = False
@@ -131,3 +174,36 @@ class RecognitionThread(QThread):
         result_text = "판정" if word is not None else f"기준 미만 ({predictor.PROB_THRESHOLD})"
         print(f"[인식] 구간 {len(seg_xy)}프레임 → {result_text} | {top_text}", flush=True)
         return word, prob
+
+
+def draw_keypoints(frame, xy, right_missing, left_missing, pose_missing, wrist_xy):
+    """
+    웹캠 프레임 위에 MediaPipe가 뽑은 관절을 그린다 (모델에 들어가는 46슬롯 + 트리거용 Pose 손목).
+    좌표를 그린 뒤 좌우 반전해서 돌려준다 (거울처럼 보이게). MediaPipe 입력 프레임은 반전하지 않는다.
+    """
+    image = frame.copy()
+
+    hands = [
+        (0, right_missing, RIGHT_HAND_COLOR),    # 오른손 슬롯 0~20
+        (21, left_missing, LEFT_HAND_COLOR),     # 왼손 슬롯 21~41
+    ]
+    for slot_start, missing, color in hands:
+        if missing:
+            continue
+        points = xy[slot_start:slot_start + 21].astype(int)
+        for a, b in HAND_CONNECTIONS:
+            cv2.line(image, tuple(points[a]), tuple(points[b]), color, 2)
+        for p in points:
+            cv2.circle(image, tuple(p), 4, color, -1)
+
+    if not pose_missing:
+        right_elbow, left_elbow, right_shoulder, left_shoulder = xy[42:46].astype(int)
+        cv2.line(image, tuple(right_shoulder), tuple(left_shoulder), POSE_COLOR, 2)
+        cv2.line(image, tuple(right_shoulder), tuple(right_elbow), POSE_COLOR, 2)
+        cv2.line(image, tuple(left_shoulder), tuple(left_elbow), POSE_COLOR, 2)
+        for p in (right_elbow, left_elbow, right_shoulder, left_shoulder):
+            cv2.circle(image, tuple(p), 6, POSE_COLOR, -1)
+        for p in wrist_xy.astype(int):
+            cv2.circle(image, tuple(p), 8, WRIST_COLOR, 2)
+
+    return cv2.flip(image, 1)
