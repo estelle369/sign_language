@@ -20,7 +20,7 @@ import numpy as np
 
 
 SEQ_LEN = 72            # 모델 입력 프레임 수
-MAX_MISSING_RUN = 5     # 한 부위가 이보다 길게(6프레임 이상) 연속으로 빠지면 그 구간은 인식하지 않는다
+MAX_MISSING_RUN = 10     # 한 부위가 이보다 길게(6프레임 이상) 연속으로 빠지면 그 구간은 인식하지 않는다
 
 RIGHT_HAND_START, RIGHT_HAND_END = 0, 21
 LEFT_HAND_START, LEFT_HAND_END = 21, 42
