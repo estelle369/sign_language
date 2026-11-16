@@ -70,6 +70,9 @@ def create_landmarkers():
     hand_options = mp.tasks.vision.HandLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=HAND_MODEL_PATH),
         running_mode=RunningMode.VIDEO,
+        min_hand_detection_confidence=0.5,
+        min_hand_presence_confidence=0.3,
+        min_tracking_confidence=0.3,
         num_hands=2,
     )
     pose_options = mp.tasks.vision.PoseLandmarkerOptions(
