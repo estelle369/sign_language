@@ -17,7 +17,7 @@ MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 MODEL_PATH = os.path.join(MODEL_DIR, "random_forest_m5.joblib")
 LABEL_MAP_PATH = os.path.join(MODEL_DIR, "label_map.csv")
 
-PROB_THRESHOLD = 0.35  # 확률임계값
+PROB_THRESHOLD = 0.5  # 확률임계값
 
 
 def load_model():
