@@ -1,6 +1,7 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QStackedWidget, QScrollArea, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QStackedWidget, QScrollArea, QVBoxLayout, QWidget, QShortcut
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QKeySequence
 
 from views.main_view import MainView
 from views.practice_game.practice_view import PracticeView
@@ -16,6 +17,19 @@ class MainController(QWidget):
         
         # 노트북 화면(가로)에서 세로형 UI를 테스트하기 좋은 창 크기 설정 (폭 700, 높이 950)
         self.resize(700, 950)
+
+        self.fullscreen_shortcuts = []
+        for key in ("F", "F11"):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.WindowShortcut)
+            shortcut.setAutoRepeat(False)
+            shortcut.activated.connect(self.showFullScreen)
+            self.fullscreen_shortcuts.append(shortcut)
+
+        self.normal_window_shortcut = QShortcut(QKeySequence("Esc"), self)
+        self.normal_window_shortcut.setContext(Qt.WindowShortcut)
+        self.normal_window_shortcut.setAutoRepeat(False)
+        self.normal_window_shortcut.activated.connect(self.showNormal)
         
         # 전체 창을 채우는 기본 레이아웃
         main_layout = QVBoxLayout(self)
@@ -90,5 +104,5 @@ class MainController(QWidget):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     controller = MainController()
-    controller.show()
+    controller.showFullScreen()
     sys.exit(app.exec_())

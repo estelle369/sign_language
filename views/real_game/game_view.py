@@ -19,11 +19,11 @@ class GameView(QWidget):
         
 
         
-# 🌟 현재 game_view.py 파일 위치(views/real_game/)를 기준으로 최상위 폴더(sign_language)를 찾아간 뒤, image 폴더로 진입합니다.
+# 현재 game_view.py 파일 위치(views/real_game/)를 기준으로 최상위 폴더(sign_language)를 찾아간 뒤, image 폴더로 진입합니다.
         current_dir = os.path.dirname(os.path.abspath(__file__))
         root_dir = os.path.abspath(os.path.join(current_dir, "../../"))
         
-        # 🌟 image 폴더 안에 있는 실제 파일명을 정확한 경로로 조립합니다.
+        # image 폴더 안에 있는 실제 파일명을 정확한 경로로 조립합니다.
         image_dir = os.path.join(root_dir, "image")
         
         self.bg_path = os.path.join(image_dir, "blue_bg.png")
@@ -151,6 +151,10 @@ class GameView(QWidget):
         self.board_grid = QGridLayout(self.game_board_frame)
         self.board_grid.setContentsMargins(20, 20, 20, 20)
         self.board_grid.setSpacing(12)
+        for column in range(4):
+            self.board_grid.setColumnStretch(column, 1)
+        for row in range(6):
+            self.board_grid.setRowStretch(row, 1)
 
         # 24개 단어 라벨 위젯 사전
         self.word_widgets = {}
@@ -256,11 +260,13 @@ class GameView(QWidget):
             word_chip.setAlignment(Qt.AlignCenter)
             word_chip.setStyleSheet("""
                 QLabel {
-                    font-size: 18px; font-weight: bold; color: #334155;
+                    font-size: 36px; font-weight: bold; color: #334155;
                     background-color: rgba(255, 255, 255, 0.95);
-                    padding: 15px; border-radius: 16px; border: 1.5px solid #CBD5E1;
+                    padding: 12px 18px; border-radius: 16px; border: 2px solid #CBD5E1;
                 }
             """)
+            word_chip.ensurePolished()
+            word_chip.setMinimumSize(word_chip.sizeHint())
             self.board_grid.addWidget(word_chip, row, col)
             self.word_widgets[word] = word_chip
 
@@ -339,9 +345,9 @@ class GameView(QWidget):
             
             card_widget.setStyleSheet("""
                 QLabel {
-                    font-size: 18px; font-weight: bold; color: #B45309;
+                    font-size: 36px; font-weight: bold; color: #B45309;
                     background-color: #FEF08A;
-                    padding: 15px; border-radius: 16px; border: 2px solid #EAB308;
+                    padding: 12px 18px; border-radius: 16px; border: 2px solid #EAB308;
                 }
             """)
             
