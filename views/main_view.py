@@ -2,7 +2,7 @@ import sys
 import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QApplication, QFrame, QGraphicsDropShadowEffect, QSizePolicy
+    QApplication, QFrame, QGraphicsDropShadowEffect
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QPainter, QPixmap, QFontDatabase
@@ -45,7 +45,7 @@ class MainView(QWidget):
         header_layout.setAlignment(Qt.AlignCenter)
         header_layout.setSpacing(10)
 
-        subtitle_label = QLabel("수어 학습 키오스크")
+        subtitle_label = QLabel("수어 학습 게임")
         subtitle_label.setFont(QFont(MainView.CUSTOM_FONT_FAMILY, 50, QFont.Bold))
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setStyleSheet("color: #014099; background: transparent;")
@@ -130,7 +130,7 @@ class MainView(QWidget):
         painter = QPainter(self)
         
         # 🌟 image_dir(image/ 폴더)과 결합하여 안전하게 배경 이미지 경로 설정
-        bg_path = os.path.join(self.image_dir, "seoil_bg.png")
+        bg_path = os.path.join(self.image_dir, "seoil_bg_width.png")
         pixmap = QPixmap(bg_path)
         
         if not pixmap.isNull():
@@ -141,8 +141,7 @@ class MainView(QWidget):
 
     def _create_mode_card(self, title: str, desc: str, btn_text: str, callback, icon_path: str = None, is_highlighted: bool = False) -> QFrame:
         card = QFrame()
-        card.setMinimumSize(360, 480)
-        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        card.setFixedSize(500, 400)
         
         card.setCursor(Qt.PointingHandCursor)
         card.setObjectName("modeCardHighlighted" if is_highlighted else "modeCard")

@@ -26,6 +26,7 @@ class CameraStream:
         self.capture = None
         self.thread = None
         self.running = False
+        self.error_message = None
 
         # 아래 값들은 캡처 스레드와 처리 쪽이 같이 쓰므로 condition(잠금)으로 보호한다
         self.condition = threading.Condition()
@@ -36,9 +37,13 @@ class CameraStream:
 
     def start(self):
         """카메라를 열고 캡처 스레드를 시작한다. 카메라를 열 수 없으면 RuntimeError."""
-        self.capture = cv2.VideoCapture(self.camera_index)
-        if not self.capture.isOpened():
-            raise RuntimeError(f"카메라를 열 수 없습니다 (번호 {self.camera_index})")
+        try:
+            self.capture = cv2.VideoCapture(self.camera_index)
+            if not self.capture.isOpened():
+                raise RuntimeError(f"카메라를 열 수 없습니다 (번호 {self.camera_index})")
+        except (cv2.error, RuntimeError) as error:
+            self.stop()
+            raise RuntimeError(f"카메라 연결 실패: {error}") from error
 
         self.start_time = time.time()
         self.running = True
@@ -47,21 +52,23 @@ class CameraStream:
 
     def _run(self):
         """캡처 스레드: 카메라에서 계속 읽어 가장 최근 프레임으로 덮어쓴다."""
-        while self.running:
-            ok, frame = self.capture.read()
-            if not ok:
-                break
-            timestamp_ms = int((time.time() - self.start_time) * 1000)
+        try:
+            while self.running:
+                ok, frame = self.capture.read()
+                if not ok:
+                    break
+                timestamp_ms = int((time.time() - self.start_time) * 1000)
+                with self.condition:
+                    self.frame = frame
+                    self.frame_id += 1
+                    self.timestamp_ms = timestamp_ms
+                    self.condition.notify_all()     # read() 에서 기다리는 쪽을 깨운다
+        except cv2.error as error:
+            self.error_message = f"카메라 영상을 읽지 못했습니다: {error}"
+        finally:
             with self.condition:
-                self.frame = frame
-                self.frame_id += 1
-                self.timestamp_ms = timestamp_ms
-                self.condition.notify_all()     # read() 에서 기다리는 쪽을 깨운다
-
-        # 카메라가 멈췄거나 stop() 이 불렸다: 기다리는 쪽이 계속 기다리지 않도록 깨운다
-        with self.condition:
-            self.running = False
-            self.condition.notify_all()
+                self.running = False
+                self.condition.notify_all()
 
     def read(self, last_id, timeout_seconds=1.0):
         """

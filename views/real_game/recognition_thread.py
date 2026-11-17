@@ -32,6 +32,14 @@ class RecognitionThread(QThread):
         super().__init__(parent)
         self._running = False
         self._calibration_requested = False
+        self._camera = None
+
+    def read_preview(self, last_id):
+        """인식과 같은 카메라의 최신 프레임을 UI 타이머에서 대기 없이 읽는다."""
+        camera = self._camera
+        if camera is None:
+            return None, last_id, 0
+        return camera.read(last_id, timeout_seconds=0)
 
     def start(self):
         """스레드를 시작한다. stop() 이 run() 보다 먼저 불려도 멈추도록 여기서 실행 표시를 한다."""
@@ -70,6 +78,7 @@ class RecognitionThread(QThread):
             self.error_occurred.emit(str(e))
             return
 
+        self._camera = camera
         trigger = None      # 캘리브레이션 요청이 오면 만든다
         last_id = -1
         try:
@@ -77,7 +86,7 @@ class RecognitionThread(QThread):
                 frame, last_id, timestamp_ms = camera.read(last_id, CAMERA_READ_TIMEOUT_SECONDS)
                 if frame is None:
                     if self._running:
-                        self.error_occurred.emit("카메라에서 프레임을 받지 못했습니다.")
+                        self.error_occurred.emit(camera.error_message or "카메라에서 프레임을 받지 못했습니다.")
                     break
 
                 # 캘리브레이션 전에도 MediaPipe 에는 계속 넣는다 (VIDEO 모드 추적이 이어지도록)
@@ -102,6 +111,7 @@ class RecognitionThread(QThread):
                 if word is not None:
                     self.word_recognized.emit(word, prob)
         finally:
+            self._camera = None
             camera.stop()
             hand_landmarker.close()
             pose_landmarker.close()

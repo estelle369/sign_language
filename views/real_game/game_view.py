@@ -1,14 +1,63 @@
 import os
 import random
 import sys
+import cv2
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
-    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QPainter, QPixmap
+    QApplication, QWidget, QLabel, QPushButton,
+    QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QSizePolicy,
+    QGraphicsOpacityEffect)
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QPropertyAnimation
+from PyQt5.QtGui import QImage, QPainter, QPixmap
 from PyQt5.QtMultimedia import QSound  
 
 from views.real_game.recognition_thread import RecognitionThread
+
+
+class CameraPreview(QLabel):
+    def __init__(self, parent=None):
+        super().__init__("카메라 연결 준비 중", parent)
+        self._image = QImage()
+        self.setAlignment(Qt.AlignCenter)
+        self.setMinimumSize(1, 1)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.setStyleSheet("background: #10243A; color: white; border-radius: 12px;")
+
+    def set_image(self, image):
+        self._image = image
+        self._render_image()
+
+    def clear_image(self, message):
+        self._image = QImage()
+        self.clear()
+        self.setText(message)
+
+    def _render_image(self):
+        if not self._image.isNull():
+            self.setPixmap(QPixmap.fromImage(self._image).scaled(
+                self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._render_image()
+
+
+class WordChip(QLabel):
+    def __init__(self, word):
+        super().__init__(word)
+        policy = self.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.setSizePolicy(policy)
+        self._effect = QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self._effect)
+        self._pop_animation = QPropertyAnimation(self._effect, b"opacity", self)
+        self._pop_animation.setDuration(250)
+        self._pop_animation.setStartValue(1.0)
+        self._pop_animation.setEndValue(0.0)
+        self._pop_animation.finished.connect(self.hide)
+
+    def pop(self):
+        self._pop_animation.start()
+
 
 class GameView(QWidget):
 
@@ -16,6 +65,8 @@ class GameView(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.resize(1280, 800)
+        self.setMinimumSize(1000, 700)
         
 
         
@@ -64,6 +115,11 @@ class GameView(QWidget):
         self.fx_timer.setSingleShot(True)
         self.fx_timer.timeout.connect(self._hide_fx_overlay)
 
+        self.preview_timer = QTimer(self)
+        self.preview_timer.setInterval(33)
+        self.preview_timer.timeout.connect(self._update_camera_preview)
+        self._preview_frame_id = -1
+
         self.init_ui()
 
     def paintEvent(self, event):
@@ -77,9 +133,38 @@ class GameView(QWidget):
         super().paintEvent(event)
 
     def init_ui(self):
-        root_layout = QVBoxLayout()
-        root_layout.setContentsMargins(20, 20, 20, 20)
-        root_layout.setSpacing(15)
+        root_layout = QHBoxLayout(self)
+        root_layout.setContentsMargins(16, 16, 16, 16)
+        root_layout.setSpacing(0)
+
+        self.camera_panel = QFrame()
+        self.camera_panel.setStyleSheet(
+            "QFrame { background: rgba(255, 255, 255, 0.9); border-radius: 16px; }")
+        camera_layout = QVBoxLayout(self.camera_panel)
+        camera_layout.setContentsMargins(16, 16, 16, 16)
+        camera_title = QLabel("실시간 웹캠")
+        camera_title.setStyleSheet("font-size: 24px; font-weight: bold; color: #014099;")
+        self.camera_preview = CameraPreview()
+        self.recognition_status = QLabel("현재 인식 중 / 카메라 연결 준비")
+        self.recognition_status.setWordWrap(True)
+        self.recognition_status.setStyleSheet("font-size: 18px; color: #014099;")
+        self.guide_label = QLabel("상반신과 양손이 화면에 보이도록 서 주세요.\n시작 전에는 양팔을 편하게 내려 주세요.")
+        self.guide_label.setWordWrap(True)
+        self.guide_label.setStyleSheet("font-size: 16px; color: #475569;")
+        camera_layout.addWidget(camera_title)
+        camera_layout.addWidget(self.camera_preview, 1)
+        camera_layout.addWidget(self.recognition_status)
+        camera_layout.addWidget(self.guide_label)
+
+        self.game_panel = QWidget()
+        game_layout = QVBoxLayout(self.game_panel)
+        game_layout.setContentsMargins(12, 0, 0, 0)
+        game_layout.setSpacing(12)
+        for panel in (self.camera_panel, self.game_panel):
+            panel.setMinimumWidth(0)
+            panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
+        root_layout.addWidget(self.camera_panel, 2)
+        root_layout.addWidget(self.game_panel, 3)
 
         # ======================================================================
         # 1. 상단 헤더 바 (네이비 #014099 테마 적용)
@@ -92,7 +177,7 @@ class GameView(QWidget):
                 border: 2px solid #014099;
             }
         """)
-        header_layout = QHBoxLayout(header_frame)
+        header_layout = QVBoxLayout(header_frame)
         header_layout.setContentsMargins(20, 10, 20, 10)
         
         # 로고 및 타이틀
@@ -128,14 +213,18 @@ class GameView(QWidget):
         """)
         self.btn_top_main.clicked.connect(self._on_click_back)
 
+        logo_title_layout.addStretch(1)
+        logo_title_layout.addWidget(self.btn_top_main)
         header_layout.addLayout(logo_title_layout)
-        header_layout.addStretch(1)
-        header_layout.addWidget(self.timer_label)
-        header_layout.addWidget(self.score_label)
-        header_layout.addWidget(self.remain_label)
-        header_layout.addWidget(self.btn_top_main)
+        stats_layout = QHBoxLayout()
+        for label in (self.timer_label, self.score_label, self.remain_label):
+            label.setStyleSheet(
+                "font-size: 14px; font-weight: bold; color: #014099; "
+                "background: #E6F0FA; padding: 6px; border-radius: 10px;")
+            stats_layout.addWidget(label)
+        header_layout.addLayout(stats_layout)
 
-        root_layout.addWidget(header_frame)
+        game_layout.addWidget(header_frame)
 
         # ======================================================================
         # 2. 게임판 영역 및 효과 오버레이
@@ -149,8 +238,8 @@ class GameView(QWidget):
             }
         """)
         self.board_grid = QGridLayout(self.game_board_frame)
-        self.board_grid.setContentsMargins(20, 20, 20, 20)
-        self.board_grid.setSpacing(12)
+        self.board_grid.setContentsMargins(12, 12, 12, 12)
+        self.board_grid.setSpacing(8)
         for column in range(4):
             self.board_grid.setColumnStretch(column, 1)
         for row in range(6):
@@ -204,8 +293,7 @@ class GameView(QWidget):
         """)
         self.result_container.setHidden(True)
 
-        root_layout.addWidget(self.game_board_frame, 1)
-        self.setLayout(root_layout)
+        game_layout.addWidget(self.game_board_frame, 1)
 
     # ======================================================================
     # 게임 상태 리셋 및 카운트다운 로직
@@ -233,6 +321,7 @@ class GameView(QWidget):
         self.countdown_timer.stop()
         self.fx_timer.stop()
         self.result_container.setHidden(True)
+        self.fx_overlay.hide()
 
         self.score = 0
         self.time_left = 120
@@ -256,13 +345,13 @@ class GameView(QWidget):
             row = idx // 4
             col = idx % 4
             
-            word_chip = QLabel(word)
+            word_chip = WordChip(word)
             word_chip.setAlignment(Qt.AlignCenter)
             word_chip.setStyleSheet("""
                 QLabel {
-                    font-size: 36px; font-weight: bold; color: #334155;
+                    font-size: 24px; font-weight: bold; color: #334155;
                     background-color: rgba(255, 255, 255, 0.95);
-                    padding: 12px 18px; border-radius: 16px; border: 2px solid #CBD5E1;
+                    padding: 6px; border-radius: 16px; border: 2px solid #CBD5E1;
                 }
             """)
             word_chip.ensurePolished()
@@ -317,20 +406,48 @@ class GameView(QWidget):
     # ======================================================================
     def _start_recognition(self):
         self._stop_recognition()   # 이전 게임의 스레드가 남아 있으면 먼저 정지
+        self._preview_frame_id = -1
+        self.camera_preview.clear_image("카메라 연결 준비 중")
+        self.recognition_status.setText("모델과 카메라를 준비하고 있습니다.")
         self.recognition_thread = RecognitionThread()
         self.recognition_thread.word_recognized.connect(self._on_word_recognized)
         self.recognition_thread.error_occurred.connect(self._on_recognition_error)
         self.recognition_thread.start()
+        self.preview_timer.start()
 
     def _stop_recognition(self):
+        self.preview_timer.stop()
         if self.recognition_thread is not None:
             self.recognition_thread.stop()   # 스레드가 끝날 때까지 기다린다 (카메라가 꺼진다)
             self.recognition_thread = None
 
+    def _update_camera_preview(self):
+        if self.recognition_thread is None:
+            return
+        frame, frame_id, _ = self.recognition_thread.read_preview(self._preview_frame_id)
+        if frame is None:
+            return
+        try:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            height, width, _ = rgb.shape
+            image = QImage(rgb.data, width, height, rgb.strides[0], QImage.Format_RGB888).copy()
+        except cv2.error as error:
+            self._on_recognition_error(f"웹캠 영상을 변환하지 못했습니다: {error}")
+            return
+        if self._preview_frame_id == -1:
+            self.recognition_status.setText("카메라 연결됨 / 수어 동작을 보여 주세요.")
+        self._preview_frame_id = frame_id
+        self.camera_preview.set_image(image)
+
     def _on_recognition_error(self, message: str):
-        """카메라·모델을 열지 못하면 게임을 할 수 없으므로 프로그램을 종료한다 (임시 처리)."""
         print(f"[수어 인식 오류] {message}", file=sys.stderr)
-        QApplication.instance().exit(1)
+        self.game_timer.stop()
+        self.countdown_timer.stop()
+        self.fx_timer.stop()
+        self.fx_overlay.hide()
+        self.camera_preview.clear_image("카메라를 사용할 수 없습니다.")
+        self.recognition_status.setText(message)
+        self._show_game_result("게임을 시작할 수 없습니다", "카메라 연결 및 모델 파일을 확인한 뒤\n'다시 하기'를 눌러 주세요.")
 
     # ======================================================================
     # 정답/오답 판정 및 효과 연출 (캐릭터 이미지 등장 + 효과음)
@@ -339,29 +456,20 @@ class GameView(QWidget):
         if not self.is_playing:
             return   # 카운트다운 중이거나 게임이 끝난 뒤에 도착한 결과는 무시
 
+        self.recognition_status.setText(f"현재 인식: {word} ({prob:.0%})")
         # 1) 정답을 맞힌 경우
         if word in self.word_widgets and word in self.remaining_words:
             card_widget = self.word_widgets[word]
             
             card_widget.setStyleSheet("""
                 QLabel {
-                    font-size: 36px; font-weight: bold; color: #B45309;
+                    font-size: 24px; font-weight: bold; color: #B45309;
                     background-color: #FEF08A;
-                    padding: 12px 18px; border-radius: 16px; border: 2px solid #EAB308;
+                    padding: 6px; border-radius: 16px; border: 2px solid #EAB308;
                 }
             """)
             
-            def make_slot_empty(widget=card_widget):
-                widget.setText("")  
-                widget.setStyleSheet("""
-                    QLabel {
-                        background-color: rgba(240, 244, 248, 0.4);
-                        border-radius: 16px;
-                        border: 2px dashed #CBD5E1;
-                    }
-                """) 
-
-            QTimer.singleShot(250, make_slot_empty)
+            card_widget.pop()
             
             self.remaining_words.remove(word)
             self.score += 100  # 단어당 100점
