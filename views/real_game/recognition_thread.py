@@ -27,6 +27,7 @@ class RecognitionThread(QThread):
 
     word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률)
     error_occurred = pyqtSignal(str)           # 오류 메시지
+    frame_ready = pyqtSignal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -79,6 +80,8 @@ class RecognitionThread(QThread):
                     if self._running:
                         self.error_occurred.emit("카메라에서 프레임을 받지 못했습니다.")
                     break
+
+                self.frame_ready.emit(frame)
 
                 # 캘리브레이션 전에도 MediaPipe 에는 계속 넣는다 (VIDEO 모드 추적이 이어지도록)
                 xy, right_missing, left_missing, pose_missing, wrist_xy = mediapipe_extractor.extract_keypoints(
