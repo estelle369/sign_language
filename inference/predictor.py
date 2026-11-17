@@ -14,10 +14,10 @@ import numpy as np
 
 
 MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
-MODEL_PATH = os.path.join(MODEL_DIR, "m2_noise.joblib")
+MODEL_PATH = os.path.join(MODEL_DIR, "m4_noise_scale.joblib")
 LABEL_MAP_PATH = os.path.join(MODEL_DIR, "label_map.csv")
 
-PROB_THRESHOLD = 0.5  # 확률임계값
+PROB_THRESHOLD = 0.4  # 확률임계값
 
 
 def load_model():
@@ -28,7 +28,7 @@ def load_model():
 
 
 def load_label_names():
-    """label_map.csv 를 읽어 라벨 번호 순서대로 단어 이름 리스트를 돌려준다. (예: names[17] == "채팅")"""
+    """label_map.csv 를 읽어 라벨 번호 순서대로 단어 이름 리스트를 돌려준다. (예: names[17] == "백화점")"""
     if not os.path.exists(LABEL_MAP_PATH):
         raise FileNotFoundError(f"라벨 맵 파일을 찾을 수 없습니다: {LABEL_MAP_PATH}")
     names = []
