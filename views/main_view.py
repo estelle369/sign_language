@@ -45,7 +45,7 @@ class MainView(QWidget):
         header_layout.setAlignment(Qt.AlignCenter)
         header_layout.setSpacing(10)
 
-        subtitle_label = QLabel("수어 학습 키오스크")
+        subtitle_label = QLabel("수어 학습 게임")
         subtitle_label.setFont(QFont(MainView.CUSTOM_FONT_FAMILY, 50, QFont.Bold))
         subtitle_label.setAlignment(Qt.AlignCenter)
         subtitle_label.setStyleSheet("color: #014099; background: transparent;")
@@ -59,7 +59,9 @@ class MainView(QWidget):
         header_layout.addWidget(desc_label)
 
         main_layout.addLayout(header_layout)
-        main_layout.addStretch(2)
+        
+        # 🌟 [수정 포인트] 상단 여백 스트레치 값을 키워서 카드를 아래로 밀어냅니다 (기존 8 -> 13)
+        main_layout.addStretch(50)
 
         # 2. 중앙 카드 선택 영역 (연습 모드 / 실전 게임 모드)
         cards_layout = QHBoxLayout()
@@ -88,18 +90,13 @@ class MainView(QWidget):
         cards_layout.addWidget(self.game_card)
 
         main_layout.addLayout(cards_layout)
-        main_layout.addStretch(1)
+        
+        # 카드 아래쪽에도 여백을 살짝 주어 균형을 맞춥니다
+        main_layout.addStretch(2)
 
         # 3. 우측 하단 인사하는 캐릭터(용용이) 영역 (안전하게 고정된 정지형태)
         bottom_layout = QHBoxLayout()
         bottom_layout.addStretch(1) # 왼쪽 공간을 밀어내어 캐릭터를 우측 하단으로 정렬
-        
-        self.character_label = QLabel()
-        self.character_label.setAlignment(Qt.AlignCenter)
-        self.character_label.setStyleSheet("background: transparent;")
-        
-        bottom_layout = QHBoxLayout()
-        bottom_layout.addStretch(1) 
         
         self.character_label = QLabel()
         self.character_label.setAlignment(Qt.AlignCenter)
@@ -119,9 +116,6 @@ class MainView(QWidget):
             
         bottom_layout.addWidget(self.character_label)
         main_layout.addLayout(bottom_layout)
-            
-        bottom_layout.addWidget(self.character_label)
-        main_layout.addLayout(bottom_layout)
 
         self._apply_card_styles()
 
@@ -130,7 +124,7 @@ class MainView(QWidget):
         painter = QPainter(self)
         
         # 🌟 image_dir(image/ 폴더)과 결합하여 안전하게 배경 이미지 경로 설정
-        bg_path = os.path.join(self.image_dir, "seoil_bg.png")
+        bg_path = os.path.join(self.image_dir, "seoil_bg_width.png")
         pixmap = QPixmap(bg_path)
         
         if not pixmap.isNull():
@@ -141,8 +135,10 @@ class MainView(QWidget):
 
     def _create_mode_card(self, title: str, desc: str, btn_text: str, callback, icon_path: str = None, is_highlighted: bool = False) -> QFrame:
         card = QFrame()
-        card.setMinimumSize(360, 480)
-        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        card.setMinimumSize(200, 300)
+        card.setMaximumWidth(340)
+        card.setFixedHeight(360)
+        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         
         card.setCursor(Qt.PointingHandCursor)
         card.setObjectName("modeCardHighlighted" if is_highlighted else "modeCard")
