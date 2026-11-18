@@ -107,7 +107,7 @@ class MainView(QWidget):
         char_pixmap = QPixmap(char_path)
         
         if not char_pixmap.isNull():
-            scaled_char = char_pixmap.scaled(320, 320, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            scaled_char = char_pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.character_label.setPixmap(scaled_char)
         else:
             self.character_label.setText("👋 (용용이)")

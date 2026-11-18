@@ -2,7 +2,7 @@ import os
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, 
-    QGridLayout, QScrollArea, QFrame
+    QGridLayout, QScrollArea, QFrame, QSizePolicy
 )
 
 from .video_player import VideoPlayerWidget
@@ -16,30 +16,30 @@ class PracticeView(QWidget):
         
         # 24개 수어 단어 데이터셋
         self.word_dataset = [
-            {"word": "자극", "video_path": "videos/WORD0010.mp4", "desc": "신체나 마음에 자극을 주는 모습을 표현합니다."},
-            {"word": "영아", "video_path": "videos/WORD0015.mp4", "desc": "어린 아기를 안아주는 형태의 수어입니다."},
-            {"word": "성실", "video_path": "videos/WORD0023.mp4", "desc": "반듯하고 성실한 태도를 나타내는 수어입니다."},
-            {"word": "면역", "video_path": "videos/WORD0036.mp4", "desc": "질병으로부터 몸을 보호하는 수어입니다."},
-            {"word": "배드민턴", "video_path": "videos/WORD0038.mp4", "desc": "라켓으로 셔틀콕을 치는 동작의 수어입니다."},
-            {"word": "변비", "video_path": "videos/WORD0039.mp4", "desc": "배변 활동의 어려움을 나타내는 수어입니다."},
-            {"word": "불면증", "video_path": "videos/WORD0042.mp4", "desc": "잠을 이루지 못해 눈이 말똥한 모습을 표현합니다."},
-            {"word": "사위", "video_path": "videos/WORD0045.mp4", "desc": "가족 관계 중 사위를 뜻하는 수어입니다."},
-            {"word": "냄비", "video_path": "videos/WORD0081.mp4", "desc": "냄비를 나타내는 수어입니다."},
-            {"word": "찬물", "video_path": "videos/WORD0082.mp4", "desc": "시원하거나 차가운 물을 나타내는 수어입니다."},
-            {"word": "딸기", "video_path": "videos/WORD0088.mp4", "desc": "딸기의 표면 씨앗과 형태를 표현한 수어입니다."},
-            {"word": "떡국", "video_path": "videos/WORD0089.mp4", "desc": "떡을 썰어 국에 넣는 모습을 표현한 수어입니다."},
-            {"word": "부엌", "video_path": "videos/WORD0096.mp4", "desc": "음식을 조리하는 공간인 부엌을 나타냅니다."},
-            {"word": "사이다", "video_path": "videos/WORD0100.mp4", "desc": "톡 쏘는 탄산의 느낌을 표현한 수어입니다."},
-            {"word": "구급차", "video_path": "videos/WORD0149.mp4", "desc": "구급차를 나타내는 수어입니다."},
-            {"word": "주차장", "video_path": "videos/WORD0168.mp4", "desc": "차량이 주차되어 있는 공간을 나타냅니다."},
-            {"word": "출근", "video_path": "videos/WORD0170.mp4", "desc": "일터로 향하는 모습을 나타내는 수어입니다."},
-            {"word": "백화점", "video_path": "videos/WORD0197.mp4", "desc": "백화점을 나타내는 수어입니다."},
-            {"word": "디자인", "video_path": "videos/WORD0264.mp4", "desc": "도면을 그리거나 디자인하는 동작의 수어입니다."},
-            {"word": "예술", "video_path": "videos/WORD0272.mp4", "desc": "예술적 감각과 창작을 표현하는 수어입니다."},
-            {"word": "강아지", "video_path": "videos/WORD0292.mp4", "desc": "강아지를 나타내는 수어입니다."},
-            {"word": "참새", "video_path": "videos/WORD0308.mp4", "desc": "새가 날아다니거나 부리를 표현한 수어입니다."},
-            {"word": "탈춤", "video_path": "videos/WORD0353.mp4", "desc": "탈춤을 나타내는 수어입니다."},
-            {"word": "청진기", "video_path": "videos/WORD0861.mp4", "desc": "청진기를 나타내는 수어입니다."}
+            {"word": "자극", "video_path": "videos/WORD0010.mp4"},
+            {"word": "영아", "video_path": "videos/WORD0015.mp4"},
+            {"word": "성실", "video_path": "videos/WORD0023.mp4"},
+            {"word": "면역", "video_path": "videos/WORD0036.mp4"},
+            {"word": "배드민턴", "video_path": "videos/WORD0038.mp4"},
+            {"word": "변비", "video_path": "videos/WORD0039.mp4"},
+            {"word": "불면증", "video_path": "videos/WORD0042.mp4"},
+            {"word": "사위", "video_path": "videos/WORD0045.mp4"},
+            {"word": "냄비", "video_path": "videos/WORD0081.mp4"},
+            {"word": "찬물", "video_path": "videos/WORD0082.mp4"},
+            {"word": "딸기", "video_path": "videos/WORD0088.mp4"},
+            {"word": "떡국", "video_path": "videos/WORD0089.mp4"},
+            {"word": "부엌", "video_path": "videos/WORD0096.mp4"},
+            {"word": "사이다", "video_path": "videos/WORD0100.mp4"},
+            {"word": "구급차", "video_path": "videos/WORD0149.mp4"},
+            {"word": "주차장", "video_path": "videos/WORD0168.mp4"},
+            {"word": "출근", "video_path": "videos/WORD0170.mp4"},
+            {"word": "백화점", "video_path": "videos/WORD0197.mp4"},
+            {"word": "디자인", "video_path": "videos/WORD0264.mp4"},
+            {"word": "예술", "video_path": "videos/WORD0272.mp4"},
+            {"word": "강아지", "video_path": "videos/WORD0292.mp4"},
+            {"word": "참새", "video_path": "videos/WORD0308.mp4"},
+            {"word": "탈춤", "video_path": "videos/WORD0353.mp4"},
+            {"word": "청진기", "video_path": "videos/WORD0861.mp4"}
         ]
 
         self.word_buttons = []
@@ -94,6 +94,7 @@ class PracticeView(QWidget):
         # 3. 중간: 현재 선택된 단어 및 설명 표시 영역
         # ----------------------------------------------------
         info_frame = QFrame()
+        info_frame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         info_frame.setStyleSheet("""
             QFrame {
                 background-color: #ffffff;
@@ -102,8 +103,8 @@ class PracticeView(QWidget):
             }
         """)
         info_layout = QVBoxLayout(info_frame)
-        info_layout.setContentsMargins(15, 15, 15, 15)
-        info_layout.setSpacing(8)
+        info_layout.setContentsMargins(15, 8, 15, 8)
+        info_layout.setSpacing(4)
 
         self.lbl_current_word = QLabel("단어를 선택하세요")
         self.lbl_current_word.setAlignment(Qt.AlignCenter)
@@ -127,7 +128,7 @@ class PracticeView(QWidget):
         info_layout.addWidget(self.lbl_current_word)
         info_layout.addWidget(self.lbl_description)
         
-        main_layout.addWidget(info_frame, stretch=2)
+        main_layout.addWidget(info_frame)
 
         # ----------------------------------------------------
         # 4. 하단: 24개 단어 그리드 카드 영역 (스크롤 지원)
@@ -204,7 +205,9 @@ class PracticeView(QWidget):
         clicked_btn.setChecked(True)
 
         self.lbl_current_word.setText(word_data["word"])
-        self.lbl_description.setText(word_data.get("desc", ""))
+        description = word_data.get("desc", "")
+        self.lbl_description.setText(description)
+        self.lbl_description.setVisible(bool(description))
         self.video_player.load_video(word_data["video_path"])
 
     def _on_back_clicked(self):
