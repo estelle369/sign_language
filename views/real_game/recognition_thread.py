@@ -19,7 +19,7 @@ from inference import mediapipe_extractor, predictor, preprocessor
 from inference.camera import CameraStream
 from inference.trigger import SegmentTrigger
 
-CAMERA_INDEX = 0
+CAMERA_INDEX = 1
 CAMERA_READ_TIMEOUT_SECONDS = 3.0   # 카메라를 켠 직후 첫 프레임이 늦게 올 수 있어 넉넉하게 둔다
 
 
