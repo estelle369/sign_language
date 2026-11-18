@@ -14,12 +14,13 @@
 
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtGui import QImage
 
 from inference import mediapipe_extractor, predictor, preprocessor
 from inference.camera import CameraStream
 from inference.trigger import SegmentTrigger
 
-CAMERA_INDEX = 1
+CAMERA_INDEX = 0
 CAMERA_READ_TIMEOUT_SECONDS = 3.0   # 카메라를 켠 직후 첫 프레임이 늦게 올 수 있어 넉넉하게 둔다
 
 
@@ -27,6 +28,7 @@ class RecognitionThread(QThread):
 
     word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률)
     error_occurred = pyqtSignal(str)           # 오류 메시지
+    frame_ready = pyqtSignal(QImage)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -79,6 +81,12 @@ class RecognitionThread(QThread):
                     if self._running:
                         self.error_occurred.emit("카메라에서 프레임을 받지 못했습니다.")
                     break
+
+                height, width = frame.shape[:2]
+                image = QImage(
+                    frame.data, width, height, frame.strides[0], QImage.Format_BGR888
+                ).copy()
+                self.frame_ready.emit(image)
 
                 # 캘리브레이션 전에도 MediaPipe 에는 계속 넣는다 (VIDEO 모드 추적이 이어지도록)
                 xy, right_missing, left_missing, pose_missing, wrist_xy = mediapipe_extractor.extract_keypoints(
