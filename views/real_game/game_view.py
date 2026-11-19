@@ -156,8 +156,8 @@ class GameView(QWidget):
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
-        content_layout.addWidget(self.camera_label, 3)
-        content_layout.addWidget(self.game_board_frame, 7)
+        content_layout.addWidget(self.camera_label, 4)
+        content_layout.addWidget(self.game_board_frame, 6)
 
         self.board_grid = QGridLayout(self.game_board_frame)
         self.board_grid.setContentsMargins(20, 20, 20, 20)
