@@ -5,10 +5,13 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QImage, QPainter, QPixmap
+from PyQt5.QtGui import QImage, QPainter, QPainterPath, QPixmap
 from PyQt5.QtMultimedia import QSound  
 
 from views.real_game.recognition_thread import RecognitionThread
+
+CAMERA_CORNER_RADIUS = 14   # 카메라 영상 모서리 둥글기 (px)
+
 
 class GameView(QWidget):
 
@@ -149,14 +152,28 @@ class GameView(QWidget):
                 border: 2px solid #014099;
             }
         """)
+        # 카메라 카드: 게임판과 같은 테두리 카드 안에 모서리가 둥근 영상을 넣는다
+        camera_frame = QFrame()
+        camera_frame.setStyleSheet("""
+            QFrame {
+                background-color: rgba(255, 255, 255, 0.75);
+                border-radius: 20px;
+                border: 2px solid #014099;
+            }
+        """)
         self.camera_label = QLabel("카메라 연결 중...")
         self.camera_label.setAlignment(Qt.AlignCenter)
-        self.camera_label.setStyleSheet("background-color: #000000; color: #FFFFFF; border: none;")
+        self.camera_label.setStyleSheet(
+            f"background-color: #1E293B; color: #FFFFFF; font-size: 18px; font-weight: bold; "
+            f"border: none; border-radius: {CAMERA_CORNER_RADIUS}px;")
+        camera_layout = QVBoxLayout(camera_frame)
+        camera_layout.setContentsMargins(12, 12, 12, 12)
+        camera_layout.addWidget(self.camera_label)
 
         content_layout = QHBoxLayout()
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(0)
-        content_layout.addWidget(self.camera_label, 4)
+        content_layout.setContentsMargins(0, 15, 0, 20)   # 헤더·창 아래쪽과 띄운다
+        content_layout.setSpacing(15)
+        content_layout.addWidget(camera_frame, 4)
         content_layout.addWidget(self.game_board_frame, 6)
 
         self.board_grid = QGridLayout(self.game_board_frame)
@@ -366,7 +383,18 @@ class GameView(QWidget):
         )
         x = (pixmap.width() - width) // 2
         y = (pixmap.height() - height) // 2
-        self.camera_label.setPixmap(pixmap.copy(x, y, width, height))
+
+        # 영상 모서리를 둥글게 잘라 그린다 (QLabel 의 border-radius 는 그림을 잘라 주지 않는다)
+        rounded = QPixmap(width, height)
+        rounded.fill(Qt.transparent)
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, width, height, CAMERA_CORNER_RADIUS, CAMERA_CORNER_RADIUS)
+        painter = QPainter(rounded)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, pixmap, x, y, width, height)
+        painter.end()
+        self.camera_label.setPixmap(rounded)
 
     def _on_recognition_error(self, message: str):
         """카메라·모델을 열지 못하면 게임을 할 수 없으므로 프로그램을 종료한다 (임시 처리)."""
@@ -422,7 +450,7 @@ class GameView(QWidget):
                 self._stop_recognition()
                 self._show_game_result("게임 클리어! 🎉", f"모든 단어를 맞혔습니다!\n최종 점수: {self.score}점")
 
-        # 2) 틀렸거나 오답인 경우
+        # 2) 오답: 다른 단어, 이미 맞힌 단어, 인식 안 함·기준 미만(word == "")
         else:
             # 🌟 [적용] 오답 효과음 파일: failed_sound.wav
             if os.path.exists("failed_sound.wav"):

@@ -5,7 +5,7 @@
 
 사용법 (게임 화면에서)
     thread = RecognitionThread()
-    thread.word_recognized.connect(...)
+    thread.word_recognized.connect(...)    # 인식 안 함·기준 미만이면 단어가 "" 로 온다 (오답 처리)
     thread.error_occurred.connect(...)     # 카메라·모델을 열지 못했을 때
     thread.start()                         # 카운트다운 시작과 함께. 모델을 불러오고 카메라를 켠다
     thread.request_calibration()           # 카운트다운 "1"이 끝난 직후. 다음 프레임부터 쉬는 높이를 잰다
@@ -22,11 +22,12 @@ from inference.trigger import SegmentTrigger
 
 CAMERA_INDEX = 0
 CAMERA_READ_TIMEOUT_SECONDS = 3.0   # 카메라를 켠 직후 첫 프레임이 늦게 올 수 있어 넉넉하게 둔다
+MIN_SEGMENT_FRAMES = 40             # 구간이 이 프레임 수 이하면 수어 동작으로 보지 않고 무시한다 (정답도 오답도 아님)
 
 
 class RecognitionThread(QThread):
 
-    word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률)
+    word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률). 인식 안 함·기준 미만이면 단어는 ""
     error_occurred = pyqtSignal(str)           # 오류 메시지
     frame_ready = pyqtSignal(QImage)
 
@@ -106,9 +107,14 @@ class RecognitionThread(QThread):
                 if segment is None:
                     continue
 
+                segment_frames = len(segment[0])
+                if segment_frames <= MIN_SEGMENT_FRAMES:
+                    print(f"[인식] 구간 {segment_frames}프레임 → 무시 "
+                          f"(기준: {MIN_SEGMENT_FRAMES}프레임 이하)", flush=True)
+                    continue
+
                 word, prob = self._recognize(model, label_names, segment)
-                if word is not None:
-                    self.word_recognized.emit(word, prob)
+                self.word_recognized.emit(word if word is not None else "", prob)
         finally:
             camera.stop()
             hand_landmarker.close()
