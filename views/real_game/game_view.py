@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QPainter, QPixmap
+from PyQt5.QtGui import QImage, QPainter, QPixmap
 from PyQt5.QtMultimedia import QSound  
 
 from views.real_game.recognition_thread import RecognitionThread
@@ -49,6 +49,7 @@ class GameView(QWidget):
 
         # 웹캠 수어 인식 스레드 (게임 화면에 들어올 때 시작, 게임이 끝나거나 나갈 때 정지)
         self.recognition_thread = None
+        self._latest_camera_image = None
         # 프로그램을 닫을 때 스레드가 돌고 있으면 정지한다 (돌고 있는 QThread 가 지워지면 프로그램이 비정상 종료된다)
         QApplication.instance().aboutToQuit.connect(self._stop_recognition)
 
@@ -78,8 +79,8 @@ class GameView(QWidget):
 
     def init_ui(self):
         root_layout = QVBoxLayout()
-        root_layout.setContentsMargins(20, 20, 20, 20)
-        root_layout.setSpacing(15)
+        root_layout.setContentsMargins(20, 20, 20, 0)
+        root_layout.setSpacing(0)
 
         # ======================================================================
         # 1. 상단 헤더 바 (네이비 #014099 테마 적용)
@@ -148,6 +149,16 @@ class GameView(QWidget):
                 border: 2px solid #014099;
             }
         """)
+        self.camera_label = QLabel("카메라 연결 중...")
+        self.camera_label.setAlignment(Qt.AlignCenter)
+        self.camera_label.setStyleSheet("background-color: #000000; color: #FFFFFF; border: none;")
+
+        content_layout = QHBoxLayout()
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(0)
+        content_layout.addWidget(self.camera_label, 4)
+        content_layout.addWidget(self.game_board_frame, 6)
+
         self.board_grid = QGridLayout(self.game_board_frame)
         self.board_grid.setContentsMargins(20, 20, 20, 20)
         self.board_grid.setSpacing(12)
@@ -204,7 +215,7 @@ class GameView(QWidget):
         """)
         self.result_container.setHidden(True)
 
-        root_layout.addWidget(self.game_board_frame, 1)
+        root_layout.addLayout(content_layout, 1)
         self.setLayout(root_layout)
 
     # ======================================================================
@@ -220,6 +231,7 @@ class GameView(QWidget):
             w = self.game_board_frame.width()
             h = self.game_board_frame.height()
             self.fx_overlay.setGeometry(0, 0, w, h)
+            self._render_camera_frame()
             
             popup_w, popup_h = 380, 300
             self.result_container.setGeometry(
@@ -317,15 +329,44 @@ class GameView(QWidget):
     # ======================================================================
     def _start_recognition(self):
         self._stop_recognition()   # 이전 게임의 스레드가 남아 있으면 먼저 정지
+        self.camera_label.setText("카메라 연결 중...")
         self.recognition_thread = RecognitionThread()
         self.recognition_thread.word_recognized.connect(self._on_word_recognized)
         self.recognition_thread.error_occurred.connect(self._on_recognition_error)
+        self.recognition_thread.frame_ready.connect(self._on_camera_frame)
         self.recognition_thread.start()
 
     def _stop_recognition(self):
         if self.recognition_thread is not None:
-            self.recognition_thread.stop()   # 스레드가 끝날 때까지 기다린다 (카메라가 꺼진다)
+            thread = self.recognition_thread
             self.recognition_thread = None
+            thread.stop()   # 스레드가 끝날 때까지 기다린다 (카메라가 꺼진다)
+        self._latest_camera_image = None
+        if hasattr(self, "camera_label"):
+            self.camera_label.clear()
+            self.camera_label.setText("카메라가 꺼져 있습니다.")
+
+    def _on_camera_frame(self, image: QImage):
+        if self.sender() is not self.recognition_thread:
+            return
+        self._latest_camera_image = image
+        self._render_camera_frame()
+
+    def _render_camera_frame(self):
+        image = self._latest_camera_image
+        width = self.camera_label.width()
+        height = self.camera_label.height()
+        if image is None or width <= 0 or height <= 0:
+            return
+
+        pixmap = QPixmap.fromImage(image).scaled(
+            self.camera_label.size(),
+            Qt.KeepAspectRatioByExpanding,
+            Qt.SmoothTransformation
+        )
+        x = (pixmap.width() - width) // 2
+        y = (pixmap.height() - height) // 2
+        self.camera_label.setPixmap(pixmap.copy(x, y, width, height))
 
     def _on_recognition_error(self, message: str):
         """카메라·모델을 열지 못하면 게임을 할 수 없으므로 프로그램을 종료한다 (임시 처리)."""
