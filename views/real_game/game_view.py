@@ -422,7 +422,7 @@ class GameView(QWidget):
                 self._stop_recognition()
                 self._show_game_result("게임 클리어! 🎉", f"모든 단어를 맞혔습니다!\n최종 점수: {self.score}점")
 
-        # 2) 틀렸거나 오답인 경우
+        # 2) 오답: 다른 단어, 이미 맞힌 단어, 인식 안 함·기준 미만(word == "")
         else:
             # 🌟 [적용] 오답 효과음 파일: failed_sound.wav
             if os.path.exists("failed_sound.wav"):
