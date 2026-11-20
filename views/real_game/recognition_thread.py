@@ -22,7 +22,7 @@ from inference.trigger import SegmentTrigger
 
 CAMERA_INDEX = 0
 CAMERA_READ_TIMEOUT_SECONDS = 3.0   # 카메라를 켠 직후 첫 프레임이 늦게 올 수 있어 넉넉하게 둔다
-MIN_SEGMENT_FRAMES = 20             # 구간이 이 프레임 수 이하면 수어 동작으로 보지 않고 무시한다 (정답도 오답도 아님)
+MIN_SEGMENT_FRAMES = 40             # 구간이 이 프레임 수 이하면 수어 동작으로 보지 않고 무시한다 (정답도 오답도 아님)
 
 
 class RecognitionThread(QThread):
