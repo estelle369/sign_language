@@ -4,13 +4,15 @@ import sys
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QImage, QPainter, QPainterPath, QPixmap
+from PyQt5.QtCore import Qt, pyqtSignal, QPoint, QTimer
+from PyQt5.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PyQt5.QtMultimedia import QSound  
 
 from views.real_game.recognition_thread import RecognitionThread
 
 CAMERA_CORNER_RADIUS = 14   # 카메라 영상 모서리 둥글기 (px)
+MIRROR_CAMERA_VIEW = True   # 화면에 보여 주는 영상만 거울처럼 좌우 반전한다 (인식에 쓰는 프레임은 그대로)
+POSE_GUIDE_TEXT = "틀 안에 차렷 자세로 서 주세요"
 
 
 class GameView(QWidget):
@@ -53,6 +55,7 @@ class GameView(QWidget):
         # 웹캠 수어 인식 스레드 (게임 화면에 들어올 때 시작, 게임이 끝나거나 나갈 때 정지)
         self.recognition_thread = None
         self._latest_camera_image = None
+        self._show_pose_guide = False   # 카운트다운 동안만 카메라 화면에 차렷 자세 틀을 그린다
         # 프로그램을 닫을 때 스레드가 돌고 있으면 정지한다 (돌고 있는 QThread 가 지워지면 프로그램이 비정상 종료된다)
         QApplication.instance().aboutToQuit.connect(self._stop_recognition)
 
@@ -304,6 +307,7 @@ class GameView(QWidget):
         self._start_countdown()
 
     def _start_countdown(self):
+        self._set_pose_guide_visible(True)
         self.fx_overlay.setGeometry(0, 0, self.game_board_frame.width(), self.game_board_frame.height())
         self.fx_overlay.clear() 
         self.fx_overlay.setText(str(self.countdown_val))
@@ -337,6 +341,7 @@ class GameView(QWidget):
         else:
             self.countdown_timer.stop()
             self.fx_overlay.setHidden(True)
+            self._set_pose_guide_visible(False)
             self.is_playing = True
             self.game_timer.start(1000)
 
@@ -376,6 +381,8 @@ class GameView(QWidget):
         if image is None or width <= 0 or height <= 0:
             return
 
+        if MIRROR_CAMERA_VIEW:
+            image = image.mirrored(True, False)
         pixmap = QPixmap.fromImage(image).scaled(
             self.camera_label.size(),
             Qt.KeepAspectRatioByExpanding,
@@ -393,8 +400,60 @@ class GameView(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setClipPath(path)
         painter.drawPixmap(0, 0, pixmap, x, y, width, height)
+        if self._show_pose_guide:
+            self._draw_pose_guide(painter, width, height)
         painter.end()
         self.camera_label.setPixmap(rounded)
+
+    def _set_pose_guide_visible(self, visible: bool):
+        self._show_pose_guide = visible
+        self._render_camera_frame()
+
+    def _draw_pose_guide(self, painter: QPainter, width: int, height: int):
+        """
+        차렷 자세 틀(머리 ~ 허벅지 중간)을 그린다. 크기는 카메라 화면 높이(h) 기준 비율이다.
+            머리 위   : 손을 올릴 여유로 화면 높이의 14%를 비운다
+            아래쪽    : 차렷 자세에서 손목이 화면 안에 들어오도록 허벅지 중간까지 그린다
+            양옆      : 어깨 바깥은 팔꿈치가 나갈 여유로 비운다
+        """
+        h = float(height)
+        cx = width / 2.0
+
+        body = QPainterPath()
+        head = QPainterPath()
+        head.addEllipse(cx - 0.075 * h, 0.14 * h, 0.15 * h, 0.19 * h)            # 머리
+        body = body.united(head)
+        for left, top, w, hh, r in [
+            (cx - 0.035 * h, 0.30 * h, 0.07 * h, 0.07 * h, 0.0),                  # 목
+            (cx - 0.225 * h, 0.35 * h, 0.45 * h, 0.09 * h, 0.05 * h),             # 어깨
+            (cx - 0.125 * h, 0.36 * h, 0.25 * h, 0.50 * h, 0.05 * h),             # 몸통
+            (cx - 0.225 * h, 0.38 * h, 0.065 * h, 0.45 * h, 0.0325 * h),          # 팔 (화면 왼쪽)
+            (cx + 0.16 * h, 0.38 * h, 0.065 * h, 0.45 * h, 0.0325 * h),           # 팔 (화면 오른쪽)
+            (cx - 0.125 * h, 0.80 * h, 0.11 * h, 0.25 * h, 0.0),                  # 다리
+            (cx + 0.015 * h, 0.80 * h, 0.11 * h, 0.25 * h, 0.0),
+        ]:
+            part = QPainterPath()
+            part.addRoundedRect(left, top, w, hh, r, r)
+            body = body.united(part)
+
+        pen = QPen(QColor(255, 255, 255, 230), max(2.0, h * 0.005), Qt.DashLine)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(QColor(255, 255, 255, 45))
+        painter.drawPath(body)
+
+        # 안내 문구 (위쪽 가운데, 반투명 배경 위)
+        font = QFont()
+        font.setPixelSize(max(14, int(h * 0.03)))
+        font.setBold(True)
+        painter.setFont(font)
+        text_rect = painter.fontMetrics().boundingRect(POSE_GUIDE_TEXT).adjusted(-14, -8, 14, 8)
+        text_rect.moveCenter(QPoint(int(cx), int(0.07 * h)))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(1, 64, 153, 200))
+        painter.drawRoundedRect(text_rect, text_rect.height() / 2, text_rect.height() / 2)
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawText(text_rect, Qt.AlignCenter, POSE_GUIDE_TEXT)
 
     def _on_recognition_error(self, message: str):
         """카메라·모델을 열지 못하면 게임을 할 수 없으므로 프로그램을 종료한다 (임시 처리)."""
