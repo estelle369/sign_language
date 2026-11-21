@@ -5,9 +5,10 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QImage, QPainter, QPixmap
+from PyQt5.QtGui import QFont, QImage, QPainter, QPixmap
 from PyQt5.QtMultimedia import QSound  
 
+from views.custom_font import load_custom_font_family
 from views.real_game.recognition_thread import RecognitionThread
 
 class GameView(QWidget):
@@ -107,6 +108,9 @@ class GameView(QWidget):
             self.logo_label.setText("[LOGO]")
             
         self.title_label = QLabel("수어 실전 게임")
+        font_family = load_custom_font_family()
+        if font_family:
+            self.title_label.setFont(QFont(font_family))
         self.title_label.setStyleSheet("font-size: 22px; font-weight: bold; color: #014099; border: none; background: transparent;")
         logo_title_layout.addWidget(self.logo_label)
         logo_title_layout.addWidget(self.title_label)

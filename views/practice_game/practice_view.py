@@ -1,10 +1,12 @@
 import os
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, 
+    QWidget, QLabel, QPushButton, QVBoxLayout,
     QGridLayout, QScrollArea, QFrame, QSizePolicy
 )
 
+from views.custom_font import load_custom_font_family
 from .video_player import VideoPlayerWidget
 
 class PracticeView(QWidget):
@@ -56,7 +58,7 @@ class PracticeView(QWidget):
         # ----------------------------------------------------
         # 1. 상단: 메인으로 가기 버튼 & 정중앙에 커진 타이틀
         # ----------------------------------------------------
-        header_layout = QHBoxLayout()
+        header_layout = QGridLayout()
         
         self.btn_back = QPushButton("← 메인으로")
         self.btn_back.setStyleSheet("""
@@ -74,15 +76,20 @@ class PracticeView(QWidget):
         
         title_label = QLabel("수어 연습 모드")
         title_label.setAlignment(Qt.AlignCenter)
-        # 💡 [핵심 수정] 글씨 크기를 30px로 더 키우고, 진한 파란색(#014099) 적용
+        font_family = load_custom_font_family()
+        if font_family:
+            title_label.setFont(QFont(font_family))
         title_label.setStyleSheet("font-size: 30px; font-weight: 900; color: #014099; background-color: transparent;")
 
-        header_layout.addWidget(self.btn_back)
-        header_layout.addStretch(1)
-        header_layout.addWidget(title_label)
-        header_layout.addStretch(1)  # 좌우 여백을 똑같이 주어 완벽한 정중앙 정렬
+        side_width = self.btn_back.sizeHint().width()
+        header_layout.setColumnMinimumWidth(0, side_width)
+        header_layout.setColumnMinimumWidth(2, side_width)
+        header_layout.setColumnStretch(0, 1)
+        header_layout.setColumnStretch(2, 1)
+        header_layout.addWidget(self.btn_back, 0, 0, Qt.AlignLeft)
+        header_layout.addWidget(title_label, 0, 1)
+        header_layout.addWidget(QWidget(), 0, 2)
 
-        #main_layout.add.layout = header_layout # (오타 방지용 표준 addLayout 사용)
         main_layout.addLayout(header_layout, stretch=1)
 
         # ----------------------------------------------------
