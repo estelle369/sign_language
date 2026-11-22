@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QImage, QPainter, QPixmap
+from PyQt5.QtGui import QFont, QImage, QPainter, QPainterPath, QPixmap
 from PyQt5.QtMultimedia import QSound  
 
 from views.custom_font import load_custom_font_family

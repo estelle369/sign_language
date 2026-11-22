@@ -110,7 +110,7 @@ class RecognitionThread(QThread):
                 segment_frames = len(segment[0])
                 if segment_frames <= MIN_SEGMENT_FRAMES:
                     print(f"[인식] 구간 {segment_frames}프레임 → 무시 "
-                          f"(기준: {MIN_SEGMENT_FRAMES}프레임 이하)", flush=True)
+                        f"(기준: {MIN_SEGMENT_FRAMES}프레임 이하)", flush=True)
                     continue
 
                 word, prob = self._recognize(model, label_names, segment)
