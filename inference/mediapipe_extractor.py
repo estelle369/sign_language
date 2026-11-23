@@ -51,6 +51,17 @@ POSE_LANDMARK_IDS = [
 POSE_RIGHT_WRIST = 16
 POSE_LEFT_WRIST = 15
 
+# 서 있는 위치 확인용 Pose 관절 번호 (모델 입력에는 쓰지 않는다). body 배열의 행 순서다
+BODY_LANDMARK_IDS = [
+    0,   # 0: 코
+    12,  # 1: 오른어깨
+    11,  # 2: 왼어깨
+    14,  # 3: 오른팔꿈치
+    13,  # 4: 왼팔꿈치
+    16,  # 5: 오른손목
+    15,  # 6: 왼손목
+]
+
 
 def create_landmarkers():
     """
@@ -88,18 +99,29 @@ def create_landmarkers():
 
 def extract_keypoints(hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms):
     """
+    extract_keypoints_with_body() 에서 body 를 뺀 결과를 돌려준다. 반환은 아래 함수 설명 참고.
+    """
+    xy, right_missing, left_missing, pose_missing, wrist_xy, _ = extract_keypoints_with_body(
+        hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms)
+    return xy, right_missing, left_missing, pose_missing, wrist_xy
+
+
+def extract_keypoints_with_body(hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms):
+    """
     프레임 한 장에서 46점 픽셀 좌표와 부위별 결측 여부를 뽑는다.
 
     frame_bgr    : OpenCV로 읽은 프레임 (BGR, 좌우 반전하지 않은 것)
     timestamp_ms : 이 프레임의 시각(ms). 이전 호출보다 커야 한다
 
-    반환: (xy, right_missing, left_missing, pose_missing, wrist_xy)
+    반환: (xy, right_missing, left_missing, pose_missing, wrist_xy, body)
         xy            : (46, 2) 픽셀 좌표. 검출되지 않은 부위의 슬롯은 (0, 0)
         right_missing : 오른손이 검출되지 않았으면 True
         left_missing  : 왼손이 검출되지 않았으면 True
         pose_missing  : Pose(사람)가 검출되지 않았으면 True
         wrist_xy      : (2, 2) Pose 손목 픽셀 좌표 [오른손목, 왼손목]. 손목 트리거용.
                         Pose가 검출되지 않으면 (0, 0)
+        body          : (7, 3) 서 있는 위치 확인용 [x 픽셀, y 픽셀, visibility]. 행 순서는 BODY_LANDMARK_IDS.
+                        화면 밖 관절은 좌표가 화면 범위를 벗어난다. Pose가 검출되지 않으면 None
     """
     height, width = frame_bgr.shape[:2]
     rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
@@ -113,6 +135,7 @@ def extract_keypoints(hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms)
     # Pose: 사람이 검출되면 33점이 모두 나온다. 손 슬롯을 정할 때 손목 좌표가 필요하므로 먼저 처리한다
     pose_missing = len(pose_result.pose_landmarks) == 0
     wrist_xy = np.zeros((2, 2), dtype=np.float64)
+    body = None
     if not pose_missing:
         landmarks = pose_result.pose_landmarks[0]
         for k in range(len(POSE_LANDMARK_IDS)):
@@ -125,6 +148,11 @@ def extract_keypoints(hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms)
             landmark = landmarks[wrist_ids[k]]
             wrist_xy[k, 0] = landmark.x * width
             wrist_xy[k, 1] = landmark.y * height
+
+        body = np.zeros((len(BODY_LANDMARK_IDS), 3), dtype=np.float64)
+        for k in range(len(BODY_LANDMARK_IDS)):
+            landmark = landmarks[BODY_LANDMARK_IDS[k]]
+            body[k] = [landmark.x * width, landmark.y * height, landmark.visibility]
 
     # 손: 검출된 손마다 21점을 픽셀 좌표로 바꾼다
     # 0 ~ 1 좌표에 화면 폭·높이를 곱해 픽셀로 되돌린다 (화면비 왜곡 방지)
@@ -154,7 +182,7 @@ def extract_keypoints(hand_landmarker, pose_landmarker, frame_bgr, timestamp_ms)
         else:
             left_missing = False
 
-    return xy, right_missing, left_missing, pose_missing, wrist_xy
+    return xy, right_missing, left_missing, pose_missing, wrist_xy, body
 
 
 def _slots_by_pose_wrist(hands, wrist_xy):
