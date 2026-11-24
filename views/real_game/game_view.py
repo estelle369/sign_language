@@ -4,14 +4,52 @@ import sys
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QLineEdit, 
     QVBoxLayout, QHBoxLayout, QFrame, QGridLayout, QMessageBox)
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont, QImage, QPainter, QPainterPath, QPixmap
+from PyQt5.QtCore import Qt, pyqtSignal, QPointF, QRectF, QTimer
+from PyQt5.QtGui import QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PyQt5.QtMultimedia import QSound  
 
+from inference.position_check import (
+    POSITION_COME_CLOSER, POSITION_MOVE_CENTER, POSITION_NO_PERSON, POSITION_OK, POSITION_STEP_BACK)
 from views.custom_font import load_custom_font_family
-from views.real_game.recognition_thread import RecognitionThread
+from views.real_game.recognition_thread import (
+    STATUS_NO_PERSON, STATUS_RECORDING, STATUS_WAITING, RecognitionThread)
 
 CAMERA_CORNER_RADIUS = 14   # 카메라 영상 모서리 둥글기 (px)
+MIRROR_CAMERA_VIEW = True   # 화면에 보여 주는 영상만 거울처럼 좌우 반전한다 (인식에 쓰는 프레임은 그대로)
+
+# 게임 시작 전(캘리브레이션 전) 카메라 화면 위쪽에 띄우는 서 있는 위치 안내 (문구, 배경색, 점 색)
+POSITION_BADGES = {
+    POSITION_OK: ("좋아요! 이대로 차렷 자세로 서 주세요", QColor(22, 163, 74, 225), QColor(255, 255, 255)),
+    POSITION_STEP_BACK: ("손목까지 보이게 조금 뒤로 가 주세요", QColor(217, 119, 6, 225), QColor(255, 255, 255)),
+    POSITION_MOVE_CENTER: ("화면 가운데로 와 주세요", QColor(217, 119, 6, 225), QColor(255, 255, 255)),
+    POSITION_COME_CLOSER: ("조금 앞으로 와 주세요", QColor(217, 119, 6, 225), QColor(255, 255, 255)),
+    POSITION_NO_PERSON: ("화면 안으로 들어와 주세요", QColor(217, 119, 6, 225), QColor(255, 255, 255)),
+}
+
+# 게임 중 카메라 화면 위쪽에 띄우는 인식 상태 (문구, 배경색, 점 색)
+STATUS_BADGES = {
+    STATUS_WAITING: ("손을 올려 수어를 시작하세요", QColor(1, 64, 153, 210), QColor(74, 222, 128)),
+    STATUS_RECORDING: ("인식 중 · 끝나면 손을 내려 주세요", QColor(220, 38, 38, 225), QColor(255, 255, 255)),
+    STATUS_NO_PERSON: ("화면 안으로 들어와 주세요", QColor(217, 119, 6, 225), QColor(255, 255, 255)),
+}
+
+# 상태별 영상 테두리 색 (없는 상태는 테두리를 그리지 않는다)
+BORDER_COLORS = {
+    POSITION_OK: QColor(22, 163, 74),
+    POSITION_STEP_BACK: QColor(217, 119, 6),
+    POSITION_MOVE_CENTER: QColor(217, 119, 6),
+    POSITION_COME_CLOSER: QColor(217, 119, 6),
+    POSITION_NO_PERSON: QColor(217, 119, 6),
+    STATUS_RECORDING: QColor(220, 38, 38),
+}
+
+# 게임 시작 전 방법 안내
+HOW_TO_PLAY_STEPS = [
+    ("1", "차렷 자세로 서기", "왼쪽 화면에 초록색 '좋아요!'가 뜨도록 위치를 맞추고, 카운트다운 동안 차렷 자세로 서 주세요."),
+    ("2", "수어 하기", "오른쪽 단어 중 하나를 골라 수어를 해 주세요. 손을 올리면 인식이 시작돼요."),
+    ("3", "손 내리기", "동작이 끝나면 손을 내려 차렷 자세로 돌아와 주세요. 그때 정답인지 판정해요."),
+    ("4", "모두 맞히기", "맞힌 단어는 사라져요. 2분 안에 24개를 모두 맞혀 보세요!"),
+]
 
 
 class GameView(QWidget):
@@ -54,6 +92,7 @@ class GameView(QWidget):
         # 웹캠 수어 인식 스레드 (게임 화면에 들어올 때 시작, 게임이 끝나거나 나갈 때 정지)
         self.recognition_thread = None
         self._latest_camera_image = None
+        self._recognition_status = None   # 인식 스레드가 보낸 마지막 상태 (POSITION_* 또는 STATUS_*)
         # 프로그램을 닫을 때 스레드가 돌고 있으면 정지한다 (돌고 있는 QThread 가 지워지면 프로그램이 비정상 종료된다)
         QApplication.instance().aboutToQuit.connect(self._stop_recognition)
 
@@ -213,7 +252,7 @@ class GameView(QWidget):
             QPushButton { font-size: 18px; font-weight: bold; color: white; background-color: #014099; padding: 12px; border-radius: 12px; border: none; }
             QPushButton:hover { background-color: #01307A; }
         """)
-        btn_retry.clicked.connect(self._reset_game_state)
+        btn_retry.clicked.connect(lambda: self._reset_game_state(show_how_to_play=False))
 
         btn_go_main = QPushButton("메인 화면으로 가기")
         btn_go_main.setStyleSheet("""
@@ -236,6 +275,8 @@ class GameView(QWidget):
         """)
         self.result_container.setHidden(True)
 
+        self._build_how_to_play()
+
         root_layout.addLayout(content_layout, 1)
         self.setLayout(root_layout)
 
@@ -254,6 +295,8 @@ class GameView(QWidget):
             self.fx_overlay.setGeometry(0, 0, w, h)
             self._render_camera_frame()
             
+            self.how_to_play.setGeometry(20, 20, max(0, w - 40), max(0, h - 40))
+
             popup_w, popup_h = 380, 300
             self.result_container.setGeometry(
                 (w - popup_w) // 2,
@@ -261,7 +304,12 @@ class GameView(QWidget):
                 popup_w, popup_h
             )
 
-    def _reset_game_state(self):
+    def _reset_game_state(self, show_how_to_play=True):
+        """
+        게임판을 새로 섞고 인식 스레드를 켠다.
+        show_how_to_play: True면 방법 안내를 먼저 보여 주고 "게임 시작"을 누를 때 카운트다운을 시작한다.
+                          "다시 하기"에서는 False로 바로 카운트다운한다.
+        """
         self.game_timer.stop()
         self.countdown_timer.stop()
         self.fx_timer.stop()
@@ -303,8 +351,67 @@ class GameView(QWidget):
             self.board_grid.addWidget(word_chip, row, col)
             self.word_widgets[word] = word_chip
 
-        # 카운트다운 동안 모델을 불러오고 카메라를 켜 둔다
+        # 방법 안내·카운트다운 동안 모델을 불러오고 카메라를 켜 둔다
         self._start_recognition()
+        if show_how_to_play:
+            self.fx_overlay.setHidden(True)
+            self.how_to_play.setHidden(False)
+            self.how_to_play.raise_()
+        else:
+            self._start_countdown()
+
+    def _build_how_to_play(self):
+        """게임 시작 전 방법 안내 카드 (게임판 위에 겹친다)."""
+        self.how_to_play = QFrame(self.game_board_frame)
+        self.how_to_play.setObjectName("howToPlay")
+        self.how_to_play.setStyleSheet("""
+            QFrame#howToPlay {
+                background-color: #FFFFFF;
+                border-radius: 18px;
+                border: 2px solid #014099;
+            }
+            QLabel { background: transparent; border: none; }
+        """)
+        layout = QVBoxLayout(self.how_to_play)
+        layout.setContentsMargins(40, 30, 40, 30)
+        layout.setSpacing(14)
+
+        title = QLabel("게임 방법")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 30px; font-weight: bold; color: #014099;")
+        layout.addWidget(title)
+        layout.addStretch(1)
+
+        for number, head, desc in HOW_TO_PLAY_STEPS:
+            row = QHBoxLayout()
+            row.setSpacing(16)
+            badge = QLabel(number)
+            badge.setAlignment(Qt.AlignCenter)
+            badge.setFixedSize(44, 44)
+            badge.setStyleSheet(
+                "font-size: 22px; font-weight: bold; color: white; "
+                "background-color: #014099; border-radius: 22px;")
+            text = QLabel(f"<b style='color:#014099; font-size:21px;'>{head}</b><br>"
+                          f"<span style='color:#334155; font-size:17px;'>{desc}</span>")
+            text.setWordWrap(True)
+            row.addWidget(badge, 0, Qt.AlignTop)
+            row.addWidget(text, 1)
+            layout.addLayout(row)
+            layout.addStretch(1)
+
+        start_button = QPushButton("게임 시작")
+        start_button.setCursor(Qt.PointingHandCursor)
+        start_button.setStyleSheet("""
+            QPushButton { font-size: 22px; font-weight: bold; color: white; background-color: #014099;
+                          padding: 14px 60px; border-radius: 14px; border: none; }
+            QPushButton:hover { background-color: #01307A; }
+        """)
+        start_button.clicked.connect(self._on_click_start)
+        layout.addWidget(start_button, 0, Qt.AlignHCenter)
+        self.how_to_play.setHidden(True)
+
+    def _on_click_start(self):
+        self.how_to_play.setHidden(True)
         self._start_countdown()
 
     def _start_countdown(self):
@@ -355,6 +462,7 @@ class GameView(QWidget):
         self.recognition_thread.word_recognized.connect(self._on_word_recognized)
         self.recognition_thread.error_occurred.connect(self._on_recognition_error)
         self.recognition_thread.frame_ready.connect(self._on_camera_frame)
+        self.recognition_thread.status_changed.connect(self._on_recognition_status)
         self.recognition_thread.start()
 
     def _stop_recognition(self):
@@ -363,6 +471,7 @@ class GameView(QWidget):
             self.recognition_thread = None
             thread.stop()   # 스레드가 끝날 때까지 기다린다 (카메라가 꺼진다)
         self._latest_camera_image = None
+        self._recognition_status = None
         if hasattr(self, "camera_label"):
             self.camera_label.clear()
             self.camera_label.setText("카메라가 꺼져 있습니다.")
@@ -380,6 +489,8 @@ class GameView(QWidget):
         if image is None or width <= 0 or height <= 0:
             return
 
+        if MIRROR_CAMERA_VIEW:
+            image = image.mirrored(True, False)
         pixmap = QPixmap.fromImage(image).scaled(
             self.camera_label.size(),
             Qt.KeepAspectRatioByExpanding,
@@ -397,8 +508,62 @@ class GameView(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setClipPath(path)
         painter.drawPixmap(0, 0, pixmap, x, y, width, height)
+        self._draw_status_badge(painter, width, height)
         painter.end()
         self.camera_label.setPixmap(rounded)
+
+    def _on_recognition_status(self, status: str):
+        if self.sender() is not self.recognition_thread:
+            return
+        self._recognition_status = status
+        self._render_camera_frame()
+
+    def _draw_status_badge(self, painter: QPainter, width: int, height: int):
+        """
+        상태 문구를 위쪽 가운데에 띄우고, 상태에 따라 영상 테두리 색을 칠한다.
+            서 있는 위치(POSITION_*) : 게임 시작 전과 캘리브레이션이 끝나기 전
+            인식 상태(STATUS_*)      : 게임 중에만
+        """
+        status = self._recognition_status
+        if status in POSITION_BADGES:
+            text, background, dot = POSITION_BADGES[status]
+        elif status in STATUS_BADGES and self.is_playing:
+            text, background, dot = STATUS_BADGES[status]
+        else:
+            return
+
+        if status in BORDER_COLORS:
+            border = max(4.0, height * 0.008)
+            painter.setPen(QPen(BORDER_COLORS[status], border))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(QRectF(border / 2, border / 2, width - border, height - border),
+                                    CAMERA_CORNER_RADIUS, CAMERA_CORNER_RADIUS)
+        self._draw_pill(painter, text, width / 2.0, 0.07 * height, height, background, dot)
+
+    def _draw_pill(self, painter: QPainter, text: str, center_x: float, center_y: float, height: int,
+                   background: QColor, dot: QColor = None):
+        """둥근 배경 위에 흰 글씨 한 줄을 그린다. dot 을 주면 글씨 앞에 점을 찍는다."""
+        font = QFont()
+        font.setPixelSize(max(14, int(height * 0.03)))
+        font.setBold(True)
+        painter.setFont(font)
+        metrics = painter.fontMetrics()
+        dot_size = metrics.height() * 0.6 if dot is not None else 0
+        dot_gap = dot_size * 0.8 if dot is not None else 0
+        text_width = metrics.horizontalAdvance(text)
+        pill = QRectF(0, 0, text_width + dot_size + dot_gap + 28, metrics.height() + 16)
+        pill.moveCenter(QPointF(center_x, center_y))
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(background)
+        painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2)
+        left = pill.left() + 14
+        if dot is not None:
+            painter.setBrush(dot)
+            painter.drawEllipse(QRectF(left, center_y - dot_size / 2, dot_size, dot_size))
+            left += dot_size + dot_gap
+        painter.setPen(QColor(255, 255, 255))
+        painter.drawText(QRectF(left, pill.top(), text_width + 2, pill.height()), Qt.AlignVCenter, text)
 
     def _on_recognition_error(self, message: str):
         """카메라·모델을 열지 못하면 게임을 할 수 없으므로 프로그램을 종료한다 (임시 처리)."""

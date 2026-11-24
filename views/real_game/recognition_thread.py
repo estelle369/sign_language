@@ -7,8 +7,11 @@
     thread = RecognitionThread()
     thread.word_recognized.connect(...)    # 인식 안 함·기준 미만이면 단어가 "" 로 온다 (오답 처리)
     thread.error_occurred.connect(...)     # 카메라·모델을 열지 못했을 때
-    thread.start()                         # 카운트다운 시작과 함께. 모델을 불러오고 카메라를 켠다
-    thread.request_calibration()           # 카운트다운 "1"이 끝난 직후. 다음 프레임부터 쉬는 높이를 잰다
+    thread.status_changed.connect(...)     # 상태가 바뀔 때. 캘리브레이션 전에는 position_check.POSITION_*,
+                                           # 캘리브레이션 뒤에는 STATUS_* 중 하나
+    thread.start()                         # 게임 화면에 들어올 때. 모델을 불러오고 카메라를 켠다
+    thread.request_calibration()           # 카운트다운 "1"이 끝난 직후. 서 있는 위치가 통과인 첫 프레임에서
+                                           # 쉬는 높이를 잰다
     thread.stop()                          # 게임이 끝나거나 화면을 나갈 때. 카메라를 끈다
 """
 
@@ -16,12 +19,18 @@ import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QImage
 
-from inference import mediapipe_extractor, predictor, preprocessor
+from inference import mediapipe_extractor, position_check, predictor, preprocessor
 from inference.camera import CameraStream
-from inference.trigger import SegmentTrigger
+from inference.trigger import STATE_IN_SEGMENT, SegmentTrigger
 
 CAMERA_INDEX = 0
 CAMERA_READ_TIMEOUT_SECONDS = 3.0   # 카메라를 켠 직후 첫 프레임이 늦게 올 수 있어 넉넉하게 둔다
+
+# 화면에 보여 줄 인식 상태 (캘리브레이션이 끝난 뒤부터 보낸다. 그 전에는 position_check.POSITION_* 를 보낸다)
+STATUS_NO_PERSON = "no_person"   # Pose(사람)가 안 잡힘
+STATUS_WAITING = "waiting"       # 손을 올리기를 기다리는 중
+STATUS_RECORDING = "recording"   # 구간 진행 중 (손을 올림 ~ 내림)
+
 MIN_SEGMENT_FRAMES = 40             # 구간이 이 프레임 수 이하면 수어 동작으로 보지 않고 무시한다 (정답도 오답도 아님)
 
 
@@ -30,6 +39,7 @@ class RecognitionThread(QThread):
     word_recognized = pyqtSignal(str, float)   # (단어, 최대 확률). 인식 안 함·기준 미만이면 단어는 ""
     error_occurred = pyqtSignal(str)           # 오류 메시지
     frame_ready = pyqtSignal(QImage)
+    status_changed = pyqtSignal(str)           # POSITION_* 또는 STATUS_*. 바뀔 때만 보낸다
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -75,6 +85,7 @@ class RecognitionThread(QThread):
 
         trigger = None      # 캘리브레이션 요청이 오면 만든다
         last_id = -1
+        status = None       # 마지막으로 보낸 인식 상태
         try:
             while self._running:
                 frame, last_id, timestamp_ms = camera.read(last_id, CAMERA_READ_TIMEOUT_SECONDS)
@@ -90,20 +101,32 @@ class RecognitionThread(QThread):
                 self.frame_ready.emit(image)
 
                 # 캘리브레이션 전에도 MediaPipe 에는 계속 넣는다 (VIDEO 모드 추적이 이어지도록)
-                xy, right_missing, left_missing, pose_missing, wrist_xy = mediapipe_extractor.extract_keypoints(
-                    hand_landmarker, pose_landmarker, frame, timestamp_ms)
+                xy, right_missing, left_missing, pose_missing, wrist_xy, body = \
+                    mediapipe_extractor.extract_keypoints_with_body(
+                        hand_landmarker, pose_landmarker, frame, timestamp_ms)
 
                 if self._calibration_requested:
                     self._calibration_requested = False
                     trigger = SegmentTrigger()
-                if trigger is None:
-                    continue
 
-                if not trigger.is_calibrated():
-                    trigger.calibrate(xy, pose_missing, wrist_xy)   # Pose가 안 잡히면 다음 프레임에서 다시
+                # 캘리브레이션 전: 서 있는 위치를 판단해 화면에 알려 준다
+                if trigger is None or not trigger.is_calibrated():
+                    position = position_check.check_position(body, width, height)
+                    status = self._emit_status(status, position)
+                    # 위치가 통과일 때만 쉬는 높이를 잰다 (손목이 잘린 채로 재지 않도록)
+                    if trigger is not None and position == position_check.POSITION_OK:
+                        trigger.calibrate(xy, pose_missing, wrist_xy)
                     continue
 
                 segment = trigger.process_frame(xy, right_missing, left_missing, pose_missing, wrist_xy)
+
+                if trigger.state == STATE_IN_SEGMENT:
+                    status = self._emit_status(status, STATUS_RECORDING)
+                elif pose_missing:
+                    status = self._emit_status(status, STATUS_NO_PERSON)
+                else:
+                    status = self._emit_status(status, STATUS_WAITING)
+
                 if segment is None:
                     continue
 
@@ -119,6 +142,12 @@ class RecognitionThread(QThread):
             camera.stop()
             hand_landmarker.close()
             pose_landmarker.close()
+
+    def _emit_status(self, old_status, new_status):
+        """상태가 바뀌었을 때만 화면에 보낸다. 반환: 새 상태"""
+        if new_status != old_status:
+            self.status_changed.emit(new_status)
+        return new_status
 
     def _recognize(self, model, label_names, segment):
         """
