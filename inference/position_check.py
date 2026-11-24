@@ -32,7 +32,7 @@ MIN_VISIBILITY = 0.5        # 손목 visibility 가 이보다 낮으면 안 보�
 EDGE_MARGIN = 0.02          # 화면 가장자리에서 이만큼(화면 크기 비율) 안쪽이어야 "화면 안"
 HEAD_ROOM = 0.8             # 코 위로 어깨 너비의 이 배만큼이 화면 안이어야 한다 (손 올릴 여유)
 SIDE_ROOM = 0.6             # 각 어깨 바깥으로 어깨 너비의 이 배만큼이 화면 안이어야 한다 (팔꿈치 여유)
-MIN_SHOULDER_RATIO = 0.15   # 어깨 너비가 화면 폭의 이 비율보다 작으면 너무 멀다
+MIN_SHOULDER_RATIO = 0.10   # 어깨 너비가 화면 폭의 이 비율보다 작으면 너무 멀다
 
 
 def check_position(body, frame_width, frame_height):
