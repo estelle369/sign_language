@@ -70,6 +70,7 @@ class GameView(QWidget):
         
         self.bg_path = os.path.join(image_dir, "blue_bg.png")
         self.logo_path = os.path.join(image_dir, "seoil_logo.png")
+        self.guide_char_img_path = os.path.join(image_dir, "seoil_young.png")
         self.char_img_path = os.path.join(image_dir, "seoil_youngyoung_green.png")  
         self.retry_img_path = os.path.join(image_dir, "seoil_young_retry.png")
         
@@ -376,10 +377,22 @@ class GameView(QWidget):
         layout.setContentsMargins(40, 30, 40, 30)
         layout.setSpacing(14)
 
+        header_layout = QHBoxLayout()
         title = QLabel("게임 방법")
         title.setAlignment(Qt.AlignCenter)
         title.setStyleSheet("font-size: 50px; font-weight: bold; color: #014099;") # 폰트 사이즈
-        layout.addWidget(title)
+        header_layout.addWidget(title, 1)
+
+        guide_character = QLabel()
+        guide_character.setAlignment(Qt.AlignCenter)
+        guide_character.setStyleSheet("background: transparent; border: none;")
+        guide_pixmap = QPixmap(self.guide_char_img_path)
+        if not guide_pixmap.isNull():
+            guide_character.setPixmap(
+                guide_pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            )
+        header_layout.addWidget(guide_character, 0, Qt.AlignRight | Qt.AlignVCenter)
+        layout.addLayout(header_layout)
         layout.addStretch(1)
 
         for number, head, desc in HOW_TO_PLAY_STEPS:
@@ -391,7 +404,7 @@ class GameView(QWidget):
             badge.setStyleSheet(
                 "font-size: 40px; font-weight: bold; color: white; "
                 "background-color: #014099; border-radius: 40px;")
-            text = QLabel(f"<b style='color:#014099; font-size:40px;'>{head}</b><br>"
+            text = QLabel(f"<b style='color:#014099; font-size:35px;'>{head}</b><br>"
                         f"<span style='color:#334155; font-size:30px;'>{desc}</span>")
             text.setWordWrap(True)
             row.addWidget(badge, 0, Qt.AlignTop)
