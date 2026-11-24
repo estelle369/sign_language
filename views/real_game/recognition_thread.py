@@ -23,7 +23,7 @@ from inference import mediapipe_extractor, position_check, predictor, preprocess
 from inference.camera import CameraStream
 from inference.trigger import STATE_IN_SEGMENT, SegmentTrigger
 
-CAMERA_INDEX = 0
+CAMERA_INDEX = 1
 CAMERA_READ_TIMEOUT_SECONDS = 3.0   # 카메라를 켠 직후 첫 프레임이 늦게 올 수 있어 넉넉하게 둔다
 
 # 화면에 보여 줄 인식 상태 (캘리브레이션이 끝난 뒤부터 보낸다. 그 전에는 position_check.POSITION_* 를 보낸다)

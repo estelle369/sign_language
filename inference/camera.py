@@ -36,7 +36,7 @@ class CameraStream:
 
     def start(self):
         """카메라를 열고 캡처 스레드를 시작한다. 카메라를 열 수 없으면 RuntimeError."""
-        self.capture = cv2.VideoCapture(self.camera_index)
+        self.capture = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)
         if not self.capture.isOpened():
             raise RuntimeError(f"카메라를 열 수 없습니다 (번호 {self.camera_index})")
 
