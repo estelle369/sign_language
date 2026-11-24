@@ -136,9 +136,9 @@ class MainView(QWidget):
     def _create_mode_card(self, title: str, desc: str, btn_text: str, callback, icon_path: str = None, is_highlighted: bool = False) -> QFrame:
         card = QFrame()
         card.setMinimumSize(200, 300)
-        card.setMaximumWidth(340)
+        card.setMaximumWidth(380)
         card.setFixedHeight(360)
-        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         
         card.setCursor(Qt.PointingHandCursor)
         card.setObjectName("modeCardHighlighted" if is_highlighted else "modeCard")
