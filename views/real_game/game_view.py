@@ -378,7 +378,7 @@ class GameView(QWidget):
 
         title = QLabel("게임 방법")
         title.setAlignment(Qt.AlignCenter)
-        title.setStyleSheet("font-size: 30px; font-weight: bold; color: #014099;")
+        title.setStyleSheet("font-size: 50px; font-weight: bold; color: #014099;") # 폰트 사이즈
         layout.addWidget(title)
         layout.addStretch(1)
 
@@ -387,12 +387,12 @@ class GameView(QWidget):
             row.setSpacing(16)
             badge = QLabel(number)
             badge.setAlignment(Qt.AlignCenter)
-            badge.setFixedSize(44, 44)
+            badge.setFixedSize(48, 48)
             badge.setStyleSheet(
-                "font-size: 22px; font-weight: bold; color: white; "
-                "background-color: #014099; border-radius: 22px;")
-            text = QLabel(f"<b style='color:#014099; font-size:21px;'>{head}</b><br>"
-                          f"<span style='color:#334155; font-size:17px;'>{desc}</span>")
+                "font-size: 40px; font-weight: bold; color: white; "
+                "background-color: #014099; border-radius: 40px;")
+            text = QLabel(f"<b style='color:#014099; font-size:40px;'>{head}</b><br>"
+                        f"<span style='color:#334155; font-size:30px;'>{desc}</span>")
             text.setWordWrap(True)
             row.addWidget(badge, 0, Qt.AlignTop)
             row.addWidget(text, 1)
@@ -402,8 +402,8 @@ class GameView(QWidget):
         start_button = QPushButton("게임 시작")
         start_button.setCursor(Qt.PointingHandCursor)
         start_button.setStyleSheet("""
-            QPushButton { font-size: 22px; font-weight: bold; color: white; background-color: #014099;
-                          padding: 14px 60px; border-radius: 14px; border: none; }
+            QPushButton { font-size: 24px; font-weight: bold; color: white; background-color: #014099;
+                        padding: 14px 60px; border-radius: 14px; border: none; }
             QPushButton:hover { background-color: #01307A; }
         """)
         start_button.clicked.connect(self._on_click_start)
